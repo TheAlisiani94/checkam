@@ -38,7 +38,7 @@ At this point the app already works: every check runs on the phone. Only the cop
 ## 2. Connect the free backend (Supabase)
 
 1. Create a free account at supabase.com and make a new project (choose a region close to Nigeria, e.g. Europe West).
-2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**. Then do the same with `supabase/002_alerts_and_contacts.sql` and `supabase/003_search_alerts.sql`, in that order.
+2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**. Then do the same with `supabase/002_alerts_and_contacts.sql`, `003_search_alerts.sql`, `004_manufacturers.sql` and `005_document_storage.sql`, in that order.
 3. Open **Project settings → API**. Copy the **Project URL** and the **anon public** key.
 4. Paste them into `config.js`, then upload the folder again (drag it onto Netlify Drop for the same site, or push to GitHub).
 
@@ -71,3 +71,10 @@ Version 1 collects sign-ups. To start, send alerts by hand: filter `subscribers`
 3. Add Pidgin, Hausa, Yoruba and Igbo.
 4. A USSD/SMS version for basic phones.
 5. A simple admin page that maps flagged scans by market.
+
+## Manufacturer verification (partner.html, admin.html, agency.html)
+
+- **partner.html**: manufacturers and importers create an account, fill in their company, contact and products, upload documents (CAC, NAFDAC, PCN, GS1, letter of authority) and submit. They follow the 8 checks on their dashboard and enter the email and courier codes. `partner.html#demo` shows the Demo Pharma example.
+- **admin.html**: reviewers confirm each check against the public records (links are on each check), attach evidence, issue codes and print the courier letter. When all 8 checks pass, the company is approved automatically and notices for NAFDAC and PCN are queued in the Outbox. The first signed-in account to press "Claim owner access" becomes the owner and can add reviewers.
+- **agency.html**: the private link in each agency notice. The agency can object (the company is suspended at once and told to contact the agency) or withdraw the objection (approval returns automatically).
+- In Supabase **Authentication > Providers > Email**, keep "Confirm email" off until the domain email is set up, because Supabase's built-in email only reaches project members. Company emails are verified by the CheckAm email code instead.
