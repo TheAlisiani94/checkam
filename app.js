@@ -470,7 +470,7 @@ async function renderAlerts() {
   if (!Api.on) { box.innerHTML = '<div class="card"><h3>Community alerts</h3><p class="sub" style="margin-top:6px">When people find suspicious packs, they will be listed here so you know what to watch for.</p></div>'; return; }
   if (!alertsCache.length) box.innerHTML = '<p class="sub">Loading alerts…</p>';
   try {
-    const rows = (await Api.rpc('recent_alerts', {})) || [];
+    const rows = ((await Api.rpc('recent_alerts', {})) || []).filter(x => x.gtin || x.product);
     alertsCache = rows; store.set('alertsSeen', Date.now()); $('alertBadge').style.display = 'none';
     rows.forEach(x => { if (x.product) rememberProduct(x.gtin, x.product, x.maker); });
     if (!rows.length) { box.innerHTML = '<div class="card"><h3>No alerts this month</h3><p class="sub" style="margin-top:6px">Nobody has flagged a pack in the last 30 days. Keep checking before you buy.</p></div>'; return; }
@@ -516,7 +516,7 @@ function openAlert(x) {
 }
 async function checkBadge() {
   if (!Api.on) return;
-  try { const rows = await Api.rpc('recent_alerts', {}); const seen = store.get('alertsSeen', 0); if (rows && rows.some(x => Date.parse(x.last_seen) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
+  try { const rows = ((await Api.rpc('recent_alerts', {})) || []).filter(x => x.gtin || x.product); const seen = store.get('alertsSeen', 0); if (rows && rows.some(x => Date.parse(x.last_seen) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
 }
 
 /* ---------- updates / sign-up ---------- */

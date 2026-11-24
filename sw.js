@@ -1,5 +1,5 @@
 // CheckAm service worker: keeps the app opening fast and working on weak network.
-const CACHE = 'checkam-v4';
+const CACHE = 'checkam-v5';
 const SHELL = ['./', 'index.html', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'];
 
