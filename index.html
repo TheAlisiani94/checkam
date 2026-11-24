@@ -217,8 +217,44 @@ b.mine{color:var(--saffron-ink)}
 .sheet-x{position:sticky;top:0;float:right;margin:-6px -6px 0 10px;width:44px;height:44px;border-radius:50%;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);display:grid;place-items:center;z-index:3;box-shadow:0 4px 12px -6px rgba(0,0,0,.35)}
 .sheet-x svg{width:20px;height:20px}
 
+/* guided tour */
+.h-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.section>.h-row h3{margin:0}
+.link-btn{display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:6px 4px;border:0;background:none;color:var(--ok-ink);font-weight:700;font-size:15px}
+.link-btn svg{width:22px;height:22px}
+.tour{position:fixed;inset:0;z-index:60;display:none}
+.tour.on{display:block}
+.tour-hole{position:fixed;border-radius:20px;box-shadow:0 0 0 200vmax rgba(4,18,11,.74);pointer-events:none}
+.tour-hole::after{content:"";position:absolute;inset:-6px;border-radius:inherit;border:3px solid var(--saffron)}
+.tour-hand{position:fixed;width:46px;height:46px;pointer-events:none;filter:drop-shadow(0 6px 10px rgba(0,0,0,.4));opacity:0}
+.tour-hand .ripple{opacity:0;transform-origin:10px 6px}
+.tour-card{position:fixed;background:var(--paper);color:var(--ink);border-radius:20px;padding:16px 16px 12px;box-shadow:0 24px 50px -16px rgba(0,0,0,.6)}
+.tour-progress{height:4px;border-radius:2px;background:var(--line);overflow:hidden;margin-bottom:10px}
+.tour-progress i{display:block;height:100%;width:0;background:var(--leaf);border-radius:2px}
+.tour-count{font-size:13px;color:var(--soft);margin:0 0 2px}
+.tour-card h3{font-size:21px;margin:0 0 4px}
+.tour-card p#tourText{font-size:16px;margin:0}
+.tour-actions{display:flex;align-items:center;gap:8px;margin-top:14px}
+.tour-actions .grow{flex:1}
+.tour-actions .btn{width:auto;min-height:46px;padding:12px 18px;font-size:16px}
+.tour-actions .ghost{min-height:46px}
+.skip-t{border:0;background:none;color:var(--soft);font-weight:700;min-height:44px;padding:0 4px}
+.onboard.final .skip{opacity:1}
+
 /* Motion — only where it answers an action, plus one idle cue on the scan button */
 @media (prefers-reduced-motion:no-preference){
+  .tour-hole{transition:left .45s cubic-bezier(.3,.9,.3,1),top .45s cubic-bezier(.3,.9,.3,1),width .45s cubic-bezier(.3,.9,.3,1),height .45s cubic-bezier(.3,.9,.3,1),border-radius .45s}
+  .tour-card{transition:left .4s cubic-bezier(.3,.9,.3,1),top .4s cubic-bezier(.3,.9,.3,1),opacity .2s}
+  .tour.moving .tour-card{opacity:.35}
+  .tour-hand{transition:left .55s cubic-bezier(.3,.9,.3,1),top .55s cubic-bezier(.3,.9,.3,1),opacity .3s}
+  .tour-hand.tap{animation:tap 1.6s ease-in-out .1s infinite}
+  .tour-hand.tap .ripple{animation:ripple 1.6s ease-out .1s infinite}
+  .tour-progress i{transition:width .4s ease}
+  .tour-hole::after{animation:glow 1.8s ease-in-out infinite}
+  .onboard.on .ob-scan{animation:obscan 1.8s ease-in-out infinite alternate}
+  .onboard.on .ob-code{animation:obcode 1.8s ease-in-out infinite alternate}
+  .onboard.on .ob-tick{stroke-dasharray:110;stroke-dashoffset:110;animation:obtick 1s ease .4s forwards}
+
   .screen{transition:opacity .28s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s}
   .screen.on{transition:opacity .28s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s}
   .scanbtn::before{animation:pulse 2.6s ease-out infinite}
@@ -235,6 +271,12 @@ b.mine{color:var(--saffron-ink)}
   .reveal .draw path,.done .draw path{stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s ease forwards;animation-delay:calc(1s + var(--i,0)*.12s)}
   .done .draw path{animation-delay:.15s}
 }
+@keyframes tap{0%,100%{transform:translate(0,0) scale(1)}30%{transform:translate(4px,8px) scale(1)}42%{transform:translate(4px,8px) scale(.9)}55%{transform:translate(4px,8px) scale(1)}}
+@keyframes ripple{0%,38%{opacity:0;transform:scale(.4)}45%{opacity:1}80%,100%{opacity:0;transform:scale(2.2)}}
+@keyframes glow{50%{opacity:.35}}
+@keyframes obscan{from{y:58px}to{y:136px}}
+@keyframes obcode{from{opacity:.25}to{opacity:1}}
+@keyframes obtick{to{stroke-dashoffset:0}}
 @keyframes pulse{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.25);opacity:0}}
 @keyframes sweep{to{top:88%}}
 @keyframes pop{50%{transform:scale(1.06)}}
@@ -266,7 +308,7 @@ b.mine{color:var(--saffron-ink)}
       <input type="file" id="photoIn" accept="image/*" capture="environment" class="sr" tabindex="-1" aria-hidden="true">
     </div>
     <div class="section">
-      <h3>How it works</h3>
+      <div class="h-row"><h3>How it works</h3><button class="link-btn" type="button" data-guide><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg>Watch the 30-second guide</button></div>
       <ol class="steps">
         <li><b>1</b><span>Find the small square dot code on the box, usually near the expiry date.</span></li>
         <li><b>2</b><span>Scan it. We read the product, batch, expiry and serial number.</span></li>
@@ -316,6 +358,11 @@ b.mine{color:var(--saffron-ink)}
   <section class="screen" id="s-me" aria-labelledby="h-me">
     <div class="top"><h2 id="h-me">Get updates</h2></div>
     <div id="meBody"></div>
+    <div class="card">
+      <h3>New to CheckAm?</h3>
+      <p class="sub" style="margin:6px 0 14px">A 30-second guide shows you where everything is.</p>
+      <button class="btn soft" type="button" data-guide>Watch the guide</button>
+    </div>
     <div class="card" id="installCard" hidden>
       <h3>Add CheckAm to your home screen</h3>
       <p class="sub" style="margin:6px 0 14px">Opens like an app and works with weak network.</p>
@@ -371,12 +418,12 @@ b.mine{color:var(--saffron-ink)}
       <p>Many fakes look exactly like the real thing. CheckAm helps you spot the warning signs.</p>
     </div>
     <div class="slide">
-      <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="58" y="20" width="84" height="160" rx="16" fill="#073f29"/><rect x="64" y="34" width="72" height="128" rx="6" fill="#fff"/><g fill="none" stroke="#f4b400" stroke-width="5" stroke-linecap="round"><path d="M76 66v-12h12M124 54h12v12M136 130v12h-12M88 142H76v-12"/></g><rect x="80" y="96" width="40" height="4" rx="2" fill="#f4b400"/></svg>
+      <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="58" y="20" width="84" height="160" rx="16" fill="#073f29"/><rect x="64" y="34" width="72" height="128" rx="6" fill="#fff"/><g fill="none" stroke="#f4b400" stroke-width="5" stroke-linecap="round"><path d="M76 66v-12h12M124 54h12v12M136 130v12h-12M88 142H76v-12"/></g><rect class="ob-scan" x="80" y="60" width="40" height="4" rx="2" fill="#f4b400"/><g class="ob-code" fill="#0b6b45"><rect x="86" y="80" width="6" height="40"/><rect x="86" y="114" width="30" height="6"/><rect x="98" y="80" width="6" height="6"/><rect x="110" y="86" width="6" height="6"/><rect x="98" y="96" width="8" height="8"/><rect x="108" y="102" width="6" height="6"/></g></svg>
       <h2>Scan the square code</h2>
       <p>Most medicine packs now carry one. Point your camera at it, and CheckAm reads it in a second.</p>
     </div>
     <div class="slide">
-      <svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="70" fill="none" stroke="#fff" stroke-width="8"/><circle cx="100" cy="100" r="56" fill="none" stroke="#fff" stroke-width="3"/><path d="M70 102l20 20 40-44" fill="none" stroke="#f4b400" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="70" fill="none" stroke="#fff" stroke-width="8"/><circle cx="100" cy="100" r="56" fill="none" stroke="#fff" stroke-width="3"/><path class="ob-tick" d="M70 102l20 20 40-44" fill="none" stroke="#f4b400" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <h2>Free, no sign-up needed</h2>
       <p>Use it as much as you like. Sign up later only if you want alerts about fakes near you.</p>
     </div>
@@ -385,6 +432,23 @@ b.mine{color:var(--saffron-ink)}
     <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
     <button class="btn" id="obNext" type="button">Next</button>
     <button class="skip" id="obSkip" type="button">Skip</button>
+  </div>
+</div>
+
+<div class="tour" id="tour" aria-hidden="true">
+  <div class="tour-hole" id="tourHole"></div>
+  <svg class="tour-hand" id="tourHand" viewBox="0 0 48 48" aria-hidden="true"><circle class="ripple" cx="10" cy="6" r="9" fill="none" stroke="#fff" stroke-width="3"/><path d="M10 4c2 0 3.5 1.6 3.5 3.5V20l1.6-.6c1.7-.6 3.4.3 4 1.9l.2.5 1.4-.4c1.7-.4 3.3.6 3.8 2.2l.2.6 1.2-.2c1.8-.3 3.5 1 3.7 2.8L31 36c.4 4.6-3 8.6-7.6 8.9l-4.2.3c-3 .2-5.8-1.3-7.3-3.9L5 30.4c-.9-1.6-.4-3.6 1.2-4.5 1.3-.8 3-.5 4 .6l.3.4V7.5C6.5 5.6 8 4 10 4z" fill="#fff" stroke="#0b6b45" stroke-width="2" stroke-linejoin="round"/></svg>
+  <div class="tour-card" id="tourCard" role="dialog" aria-modal="true" aria-labelledby="tourTitle" aria-describedby="tourText">
+    <div class="tour-progress"><i id="tourBar"></i></div>
+    <p class="tour-count" id="tourCount"></p>
+    <h3 id="tourTitle"></h3>
+    <p id="tourText" aria-live="polite"></p>
+    <div class="tour-actions">
+      <button class="skip-t" id="tourSkip" type="button">Skip guide</button>
+      <span class="grow"></span>
+      <button class="ghost" id="tourBack" type="button">Back</button>
+      <button class="btn" id="tourNext" type="button">Next</button>
+    </div>
   </div>
 </div>
 

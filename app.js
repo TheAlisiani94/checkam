@@ -201,7 +201,7 @@ $('placeChip').addEventListener('click', () => {
 let current = null;
 async function runCheck(fields, opts = {}) {
   const p = place();
-  const e = { id: Date.now().toString(36), t: Date.now(), fields, printed: opts.printed ?? null, copy: opts.copy ?? null, opts: { city: p.city, state: p.state, sample: !!opts.sample, name: opts.name || '' } };
+  const e = { id: Date.now().toString(36), t: Date.now(), fields, printed: opts.printed ?? null, copy: opts.copy ?? null, opts: { city: p.city, state: p.state, sample: !!opts.sample, tour: !!opts.tour, name: opts.name || '' } };
   $('s-result').innerHTML = '<div class="carton"><div class="flap">Checking…</div><dl><dt>Reading</dt><dd>Product, batch, expiry, serial</dd></dl></div>';
   go('result');
   const g = (fields['01'] || '').replace(/\D/g, ''), sn = fields['21'] || '';
@@ -240,14 +240,14 @@ function renderResult(e, animate) {
       (nudge ? '<div class="nudge" style="--i:3"><button class="x" id="nudgeX" type="button" aria-label="Dismiss">×</button><h3>Get alerts about fakes near you</h3><p>Free. We\'ll message you when a fake medicine is found in your state.</p><button class="btn" id="nudgeGo" type="button">Sign up for alerts</button></div>' : '') +
       '<div class="actions" style="--i:4">' +
         '<button class="btn" id="againBtn" type="button">Scan another pack</button>' +
-        '<div class="row"><button class="btn soft" id="shareBtn" type="button">Share result</button>' + (e.opts.sample ? '' : '<button class="btn soft" id="reportBtn" type="button">Report this pack</button>') + '</div>' +
+        '<div class="row"><button class="btn soft" id="shareBtn" type="button">Share result</button>' + (e.opts.sample && !e.opts.tour ? '' : '<button class="btn soft" id="reportBtn" type="button">Report this pack</button>') + '</div>' +
       '</div>' +
       '<p class="note" style="--i:5">CheckAm finds warning signs. A clean result is not proof that a pack is genuine.</p>' +
     '</div>';
   $('backBtn').addEventListener('click', () => go('home'));
   $('againBtn').addEventListener('click', openScanner);
   $('shareBtn').addEventListener('click', () => share(r));
-  const rb = $('reportBtn'); if (rb) rb.addEventListener('click', () => openReport(e, r));
+  const rb = $('reportBtn'); if (rb) rb.addEventListener('click', () => e.opts.sample ? toast('Report a real pack after you scan it') : openReport(e, r));
   $('s-result').querySelectorAll('[data-p]').forEach(b => b.addEventListener('click', () => { e.printed = b.dataset.p; if (!e.opts.sample) updateHistory(e); renderResult(e, false); toast(b.dataset.p === 'yes' ? 'Dates match' : 'Noted'); }));
   if (nudge) {
     $('nudgeX').addEventListener('click', ev => { store.set('nudgeAt', Date.now()); ev.target.closest('.nudge').remove(); });
@@ -630,16 +630,104 @@ let installEvt = null;
 addEventListener('beforeinstallprompt', ev => { ev.preventDefault(); installEvt = ev; $('installCard').hidden = false; });
 $('installBtn').addEventListener('click', async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice.catch(() => {}); installEvt = null; $('installCard').hidden = true; });
 
+/* ---------- guided tour ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, reduceMotion ? Math.min(ms, 60) : ms));
+const TOUR = [
+  { tab: 'home', el: ['#scanBtn'], title: 'Scan a pack', text: 'Tap here, then point your camera at the small square dot code on the medicine box.', tap: true },
+  { tab: 'home', el: ['#photoBtn', '#typeBtn'], title: 'No camera?', text: 'Use a photo of the code, or type the numbers printed next to it.' },
+  { tab: 'home', el: ['#placeChip'], title: 'Set your town once', text: 'It helps CheckAm notice when the same code turns up in different towns.', tap: true },
+  { example: true, el: ['#s-result .carton'], title: 'Your result', text: 'The stamp gives the verdict: No red flags, Check well, or Don\'t use. This example has a changed expiry date.' },
+  { el: ['#s-result .checks li:nth-child(1)', '#s-result .checks li:nth-child(2)'], title: 'Why', text: 'Each line explains what was checked. Problems are listed first.' },
+  { el: ['#reportBtn'], title: 'Report a bad pack', text: 'Warn other users, then call or email NAFDAC with one tap.', tap: true },
+  { tab: 'alerts', el: ['#aForm', '#s-alerts .filters'], title: 'See what others found', text: 'Search by product, batch or number. Look near you, or anywhere in Nigeria.' },
+  { tab: 'me', el: ['nav.tabs [data-tab="me"]'], title: 'Alerts by WhatsApp or email', text: 'Sign up here if you want to hear about fakes in your state. You never need an account to scan.', tap: true },
+  { tab: 'home', el: ['#scanBtn'], title: 'You\'re ready', text: 'Scan your first medicine pack now. You can watch this guide again from the home screen.', last: true }
+];
+let tourStep = -1, tourBusy = false;
+function unionRect(sels) {
+  const rs = sels.map(s => document.querySelector(s)).filter(Boolean).map(e => e.getBoundingClientRect()).filter(r => r.width || r.height);
+  if (!rs.length) return null;
+  const l = Math.min(...rs.map(r => r.left)), t = Math.min(...rs.map(r => r.top)), rr = Math.max(...rs.map(r => r.right)), b = Math.max(...rs.map(r => r.bottom));
+  return { left: l, top: t, width: rr - l, height: b - t, right: rr, bottom: b };
+}
+function placeTour() {
+  const st = TOUR[tourStep]; if (!st) return;
+  const r = unionRect(st.el), hole = $('tourHole'), card = $('tourCard'), hand = $('tourHand');
+  const vw = innerWidth, vh = innerHeight, pad = 8;
+  if (!r) { hole.style.cssText = 'left:50%;top:40%;width:0;height:0'; hand.style.opacity = 0; }
+  else {
+    hole.style.left = (r.left - pad) + 'px'; hole.style.top = (r.top - pad) + 'px';
+    hole.style.width = (r.width + pad * 2) + 'px'; hole.style.height = (r.height + pad * 2) + 'px';
+    hole.style.borderRadius = Math.min(28, (r.height + pad * 2) / 2) + 'px';
+    hand.style.left = (r.left + r.width / 2 - 6) + 'px'; hand.style.top = (r.top + r.height / 2 + 4) + 'px';
+    hand.style.opacity = st.tap ? 1 : 0;
+  }
+  const cw = Math.min(360, vw - 32); card.style.width = cw + 'px';
+  const ch = card.offsetHeight, cx = Math.max(16, Math.min(vw - cw - 16, (r ? r.left + r.width / 2 : vw / 2) - cw / 2));
+  let cy;
+  if (!r) cy = vh / 2 - ch / 2;
+  else if (r.bottom + pad + 18 + ch < vh - 12) cy = r.bottom + pad + 18;
+  else if (r.top - pad - 18 - ch > 12) cy = r.top - pad - 18 - ch;
+  else cy = Math.max(12, vh - ch - 12);
+  card.style.left = cx + 'px'; card.style.top = cy + 'px';
+}
+async function showTourStep(i) {
+  if (tourBusy) return; tourBusy = true;
+  const prev = tourStep; tourStep = i; const st = TOUR[i];
+  $('tour').classList.add('moving'); $('tourHand').classList.remove('tap');
+  if (st.example && !(prev > i && currentScreen === 'result')) {
+    const s = SAMPLES[1];
+    await runCheck(parseGS1(s.raw), { sample: true, tour: true, name: 'Example pack', printed: s.printed, copy: s.copy });
+    await sleep(1700);
+  } else if (st.tab && currentScreen !== st.tab) { go(st.tab); await sleep(380); }
+  else if (!st.tab && !st.example && currentScreen !== 'result') { go('result'); await sleep(380); }
+  const target = document.querySelector(st.el[0]);
+  if (target && !target.closest('nav')) { target.scrollIntoView({ block: 'center', behavior: 'instant' }); await sleep(60); }
+  $('tourTitle').textContent = st.title; $('tourText').textContent = st.text;
+  $('tourCount').textContent = (i + 1) + ' of ' + TOUR.length;
+  $('tourBack').hidden = i === 0;
+  $('tourNext').textContent = st.last ? 'Scan a pack now' : 'Next';
+  $('tourSkip').textContent = st.last ? 'Done' : 'Skip guide';
+  $('tourBar').style.width = ((i + 1) / TOUR.length * 100) + '%';
+  placeTour();
+  $('tour').classList.remove('moving');
+  if (st.tap) setTimeout(() => $('tourHand').classList.add('tap'), reduceMotion ? 0 : 500);
+  $('tourNext').focus({ preventScroll: true });
+  tourBusy = false;
+}
+function startTour() {
+  closeSheet(); store.set('tourDone', true);
+  $('tour').classList.add('on'); $('tour').setAttribute('aria-hidden', 'false');
+  showTourStep(0);
+}
+function endTour(scanNow) {
+  $('tour').classList.remove('on'); $('tour').setAttribute('aria-hidden', 'true'); tourStep = -1;
+  go('home');
+  if (scanNow) openScanner(); else toast('Watch the guide again any time from the home screen');
+}
+$('tourNext').addEventListener('click', () => { if (tourBusy) return; if (TOUR[tourStep].last) endTour(true); else showTourStep(tourStep + 1); });
+$('tourBack').addEventListener('click', () => { if (!tourBusy && tourStep > 0) showTourStep(tourStep - 1); });
+$('tourSkip').addEventListener('click', () => endTour(false));
+addEventListener('resize', () => { if (tourStep >= 0) placeTour(); });
+addEventListener('keydown', ev => {
+  if (tourStep < 0) return;
+  if (ev.key === 'Escape') endTour(false);
+  if (ev.key === 'ArrowRight') $('tourNext').click();
+  if (ev.key === 'ArrowLeft') $('tourBack').click();
+});
+document.querySelectorAll('[data-guide]').forEach(b => b.addEventListener('click', startTour));
+
 /* ---------- onboarding ---------- */
 function setupOnboarding() {
   if (store.get('onboarded', false)) return;
   const ob = $('onboard'), sl = $('slides'), dots = [...$('dots').children]; ob.classList.add('on');
   const idx = () => Math.round(sl.scrollLeft / sl.clientWidth);
-  const sync = () => { const i = idx(); dots.forEach((d, k) => d.classList.toggle('on', k === i)); $('obNext').textContent = i === dots.length - 1 ? 'Start checking' : 'Next'; };
+  const last = () => idx() >= dots.length - 1;
+  const sync = () => { const i = idx(); dots.forEach((d, k) => d.classList.toggle('on', k === i)); $('obNext').textContent = last() ? 'Show me how it works' : 'Next'; $('obSkip').textContent = last() ? 'Skip the guide' : 'Skip'; ob.classList.toggle('final', last()); };
   sl.addEventListener('scroll', () => requestAnimationFrame(sync), { passive: true });
-  const finish = () => { store.set('onboarded', true); ob.classList.remove('on'); $('scanBtn').focus(); };
-  $('obNext').addEventListener('click', () => { const i = idx(); if (i >= dots.length - 1) finish(); else sl.scrollTo({ left: (i + 1) * sl.clientWidth, behavior: reduceMotion ? 'auto' : 'smooth' }); });
-  $('obSkip').addEventListener('click', finish);
+  const finish = guide => { store.set('onboarded', true); ob.classList.remove('on'); if (guide) setTimeout(startTour, 250); else { $('scanBtn').focus(); toast('Watch the 30-second guide any time from the home screen'); } };
+  $('obNext').addEventListener('click', () => { const i = idx(); if (i >= dots.length - 1) finish(true); else sl.scrollTo({ left: (i + 1) * sl.clientWidth, behavior: reduceMotion ? 'auto' : 'smooth' }); });
+  $('obSkip').addEventListener('click', () => finish(false));
   addEventListener('keydown', ev => { if (!ob.classList.contains('on')) return; if (ev.key === 'ArrowRight') $('obNext').click(); if (ev.key === 'ArrowLeft') sl.scrollTo({ left: Math.max(0, idx() - 1) * sl.clientWidth }); });
 }
 
