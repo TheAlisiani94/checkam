@@ -1,7 +1,7 @@
 /* CheckAm partner portal: manufacturer sign-up, application, documents and verification status. */
 (() => {
 'use strict';
-const { $, esc, fmtDate, STATES, CHECKS, DOCS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress } = window.CK;
+const { $, esc, fmtDate, STATES, CHECKS, DOCS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress, parseGS1 } = window.CK;
 const MCOLS = 'id,owner,status,kind,legal_name,trading_name,rc_number,gs1_prefix,factory_address,city,state,website,official_email,public_phone,contact_name,contact_role,contact_phone,foreign_manufacturer,foreign_country,status_reason,created_at,submitted_at,approved_at';
 const EDITABLE = ['kind', 'legal_name', 'trading_name', 'rc_number', 'gs1_prefix', 'factory_address', 'city', 'state', 'website', 'official_email', 'public_phone', 'contact_name', 'contact_role', 'contact_phone', 'foreign_manufacturer', 'foreign_country'];
 const STEPS = [['company', 'Company'], ['contact', 'Contact'], ['products', 'Products'], ['documents', 'Documents'], ['submit', 'Review and submit']];
@@ -53,42 +53,45 @@ function renderWelcome() {
       '<h1>Prove your medicines are genuine. Free.</h1>' +
       '<p class="sub" style="font-size:18px">When a buyer scans one of your packs with CheckAm, they see <b>Genuine, confirmed by the manufacturer</b>. When someone reports a suspicious pack of yours, you get the details privately, with the shop and town, so you can act.</p>' +
       '<ul class="benefits">' +
-        ['Free for verified manufacturers and importers', 'Uses the GS1 codes you already print for NAFDAC traceability. No new labels.', 'Private reports about suspected fakes of your products', 'Your company is checked against NAFDAC, PCN, CAC and GS1 records, so nobody can pretend to be you'].map(t => '<li>' + SVG_OK + '<span>' + esc(t) + '</span></li>').join('') +
+        ['Free for verified manufacturers and importers', 'Uses the GS1 codes you already print for NAFDAC traceability. No new labels.', 'Private reports about suspected fakes of your products', 'Your company is checked against NAFDAC, PCN, CAC and GS1 records, so nobody can pretend to be you', 'Upload batches and serial numbers so each genuine pack can be confirmed'].map(t => '<li>' + SVG_OK + '<span>' + esc(t) + '</span></li>').join('') +
       '</ul>' +
       '<div class="row"><button class="btn" type="button" id="goUp">Create a partner account</button><button class="btn soft" type="button" id="goIn">Sign in</button><a class="btn soft" href="#demo">See the demo dashboard</a></div>' +
     '</div><div class="art" aria-label="The 8 verification checks">' +
       '<h3 style="color:#fff">How we verify every company</h3>' +
       CHECKS.map((c, i) => '<div class="line"><b>' + (i + 1) + '</b>' + esc(c.title) + '</div>').join('') +
-      '<p style="opacity:.9;font-size:15px">When all 8 pass, approval is automatic. NAFDAC and PCN are informed and can object at any time.</p>' +
+      '<p style="opacity:.9;font-size:15px">When all ' + CHECKS.length + ' pass, approval is automatic. NAFDAC and PCN are informed and can object at any time.</p>' +
     '</div></section>' +
-    '<section class="card" id="authCard" hidden></section>';
+    '';
   $('goUp').addEventListener('click', () => renderAuth('up'));
   $('goIn').addEventListener('click', () => renderAuth('in'));
 }
+const dlg = $('authDlg');
+$('authX').addEventListener('click', () => dlg.close());
+dlg.addEventListener('click', ev => { if (ev.target === dlg) dlg.close(); });
 function renderAuth(mode) {
-  const c = $('authCard'); c.hidden = false;
-  c.innerHTML = '<h2>' + (mode === 'up' ? 'Create a partner account' : 'Sign in') + '</h2>' +
-    (mode === 'up' ? '<p class="sub" style="margin-top:6px">Use your official company email (not Gmail or Yahoo). We will verify it later.</p>' : '') +
-    '<form id="authForm" novalidate style="max-width:440px">' +
+  $('authBody').innerHTML = '<h2 id="authH">' + (mode === 'up' ? 'Create a partner account' : 'Sign in') + '</h2>' +
+    (mode === 'up' ? '<p class="sub" style="margin-top:6px">Any email works for your login. You will give your official company email in the application, and we verify it there.</p>' : '') +
+    '<form id="authForm" novalidate>' +
       '<label class="f" for="aEmail">Email</label><input class="input" id="aEmail" type="email" autocomplete="email" required>' +
       '<label class="f" for="aPass">Password <small>(at least 10 characters)</small></label><input class="input" id="aPass" type="password" autocomplete="' + (mode === 'up' ? 'new-password' : 'current-password') + '" required>' +
       '<p class="err" id="aErr" role="alert"></p>' +
-      '<div class="row"><button class="btn" id="aGo" type="submit">' + (mode === 'up' ? 'Create account' : 'Sign in') + '</button>' +
+      '<div class="stack" style="gap:10px"><button class="btn" id="aGo" type="submit">' + (mode === 'up' ? 'Create account' : 'Sign in') + '</button>' +
       '<button class="btn soft" type="button" id="aSwap">' + (mode === 'up' ? 'I already have an account' : 'Create an account instead') + '</button></div>' +
     '</form>';
-  c.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!dlg.open) dlg.showModal();
+  setTimeout(() => $('aEmail').focus(), 50);
   $('aSwap').addEventListener('click', () => renderAuth(mode === 'up' ? 'in' : 'up'));
   $('authForm').addEventListener('submit', async ev => {
     ev.preventDefault();
     const email = $('aEmail').value.trim(), password = $('aPass').value;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('aErr').textContent = 'Enter a valid email.'; return; }
     if (password.length < 10) { $('aErr').textContent = 'Use at least 10 characters for the password.'; return; }
-    if (mode === 'up' && /@(gmail|yahoo|hotmail|outlook|icloud|aol)\./i.test(email)) { $('aErr').textContent = 'Please use your official company email address.'; return; }
     const btn = $('aGo'); btn.disabled = true; btn.textContent = 'Please wait…';
     const r = mode === 'up' ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
     btn.disabled = false; btn.textContent = mode === 'up' ? 'Create account' : 'Sign in';
     if (r.error) { $('aErr').textContent = errText(r.error); return; }
-    if (mode === 'up' && !r.data.session) { c.innerHTML = '<h2>Check your email</h2><p class="sub" style="margin-top:8px">We sent a link to ' + esc(email) + '. Open it to confirm your account, then sign in here.</p>'; }
+    if (mode === 'up' && !r.data.session) { $('authBody').innerHTML = '<h2 id="authH">Check your email</h2><p class="sub" style="margin-top:8px">We sent a link to ' + esc(email) + '. Open it to confirm your account, then sign in.</p>'; return; }
+    dlg.close();
   });
 }
 
@@ -103,7 +106,7 @@ function stepDone(s) {
   if (s === 'company') return !!(mfr.legal_name && mfr.rc_number && mfr.gs1_prefix && mfr.factory_address && mfr.state);
   if (s === 'contact') return !!(mfr.official_email && mfr.public_phone && mfr.contact_name);
   if (s === 'products') return products.some(p => p.nafdac_no);
-  if (s === 'documents') return ['cac', 'nafdac', 'pcn', 'gs1', 'letter'].every(k => docs.some(d => d.kind === k));
+  if (s === 'documents') return ['cac', 'nafdac', 'pcn', 'gs1'].every(k => docs.some(d => d.kind === k));
   return false;
 }
 function renderApplication() {
@@ -229,7 +232,7 @@ function stepSubmit() {
   const items = [
     ['Company details', stepDone('company'), 'company'], ['Contact details', stepDone('contact'), 'contact'],
     ['At least one product with a NAFDAC number', stepDone('products'), 'products'],
-    ...['cac', 'nafdac', 'pcn', 'gs1', 'letter'].map(k => [DOCS.find(d => d.kind === k).title, docs.some(d => d.kind === k), 'documents'])
+    ...['cac', 'nafdac', 'pcn', 'gs1'].map(k => [DOCS.find(d => d.kind === k).title, docs.some(d => d.kind === k), 'documents'])
   ];
   const ready = items.every(i => i[1]);
   $('stepBody').innerHTML = '<h3>Review and submit</h3><p class="sub" style="margin-top:4px">Once submitted, your application is locked while we verify it. You can follow every check on your dashboard.</p>' +
@@ -250,7 +253,7 @@ function stepSubmit() {
 function statusBanner(m) {
   if (m.status === 'approved') return '<div class="banner ok"><h2 style="color:#fff">' + esc(m.legal_name) + ' is verified</h2><p>Approved on ' + esc(fmtDate(m.approved_at)) + '. NAFDAC and PCN have been informed.</p></div>';
   if (m.status === 'suspended') return '<div class="banner bad"><h3>Your approval is paused</h3><p>' + esc(m.status_reason || '') + '</p><p class="note">Your products will not show as Genuine until this is resolved. If an agency objected, contact that agency; approval returns automatically when they withdraw the objection.</p></div>';
-  return '<div class="banner warn"><h3>Verification in progress</h3><p>We are checking your company against public records. You will see each check change here. Enter your codes below when they arrive.</p></div>';
+  return '<div class="banner warn"><h3>Verification in progress</h3><p>We are checking your company against public records. You will see each check change here. Your email code has been sent to your official email; the courier code arrives at your factory address. Enter them below.</p></div>';
 }
 function codeExtra(kind, x, demo) {
   if (demo || !mfr || mfr.status !== 'pending' || x.status === 'passed' || (kind !== 'email' && kind !== 'courier')) return '';
@@ -263,13 +266,14 @@ function renderStatus(demoData) {
     '<div class="row" style="justify-content:space-between;margin-bottom:14px"><div><h2>' + esc(m.legal_name || 'Your company') + '</h2><p class="sub">' + esc([m.city, m.state].filter(Boolean).join(', ')) + (m.rc_number ? ' · ' + esc(m.rc_number) : '') + '</p></div>' + statusTag(m.status) + '</div>' +
     '<div class="stack">' + statusBanner(m) +
     '<section class="card">' + progress(cks) + '<div style="margin-top:16px">' + renderChecks(cks, { how: !demo, extra: (k, x) => codeExtra(k, x, demo) }) + '</div></section>' +
-    '<div class="grid2"><section class="card"><h3>Your products</h3><div class="scroll" style="margin-top:10px"><table class="t"><thead><tr><th>Product</th><th>NAFDAC no.</th><th>GTIN</th></tr></thead><tbody>' +
+    (m.status === 'approved' ? '<section class="card" id="batchCard"></section>' : '') + '<div class="grid2"><section class="card"><h3>Your products</h3><div class="scroll" style="margin-top:10px"><table class="t"><thead><tr><th>Product</th><th>NAFDAC no.</th><th>GTIN</th></tr></thead><tbody>' +
       prods.map(p => '<tr><td>' + esc(p.name) + (p.strength ? ' <span class="note">' + esc(p.strength) + '</span>' : '') + '</td><td>' + esc(p.nafdac_no) + '</td><td>' + esc(p.gtin || '—') + '</td></tr>').join('') +
-    '</tbody></table></div>' + (m.status === 'approved' ? '<p class="note" style="margin-top:10px">Next: upload batches and serial numbers so buyers see <b>Genuine</b> when they scan. Coming in the next update.</p>' : '') + '</section>' +
+    '</tbody></table></div>' + '' + '</section>' +
     '<section class="card"><h3>Activity</h3><ul style="list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px">' +
       (evs.length ? evs.map(e => '<li><b>' + esc(e.action.replace(/_/g, ' ')) + '</b>' + (e.detail ? ' <span class="note">' + esc(e.detail) + '</span>' : '') + '<br><span class="note">' + esc(fmtDate(e.at)) + '</span></li>').join('') : '<li class="note">No activity yet.</li>') +
     '</ul></section></div></div>';
-  const du = $('demoUp'); if (du) du.addEventListener('click', ev => { ev.preventDefault(); location.hash = ''; setTimeout(() => { if (!session) renderAuth('up'); }, 50); });
+  const du = $('demoUp'); if (du) du.addEventListener('click', ev => { ev.preventDefault(); history.replaceState(null, '', location.pathname); route().then(() => { if (!session) renderAuth('up'); }); });
+  if (m.status === 'approved') renderBatches(demo, demoData);
   view.querySelectorAll('[data-code]').forEach(b => b.addEventListener('click', async () => {
     const k = b.dataset.code, code = $('code_' + k).value.trim();
     if (code.length < 6) return toast('Enter the full code');
@@ -283,7 +287,128 @@ function renderStatus(demoData) {
 }
 async function renderDemo() {
   view.innerHTML = '<p class="sub">Loading the demo…</p>';
-  try { const d = await publicRpc('demo_portal'); if (!d) throw new Error('Demo not available'); renderStatus(d); }
+  try { const d = await publicRpc('demo_portal'); if (!d) throw new Error('Demo not available'); window.__demoData = d; renderStatus(d); }
   catch (e) { view.innerHTML = '<div class="card"><h2>Demo not available</h2><p class="err">' + esc(errText(e)) + '</p></div>'; }
+}
+
+/* ---------- batches and serial numbers ---------- */
+let batches = [], upTarget = null;
+const SERIAL_OK = /^[!-~]{1,20}$/;
+function parseSerials(text, gtin, lot) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let col = 0, start = 0;
+  if (lines.length) {
+    const head = lines[0].split(/[,;\t]/).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+    const i = head.findIndex(h => /^(serial|serial number|serial_number|sn)$/.test(h));
+    if (i >= 0) { col = i; start = 1; } else if (head.some(h => /[a-z]{4,}/.test(h) && !SERIAL_OK.test(h))) start = 1;
+  }
+  const good = new Set(); let bad = 0, wrong = 0, dup = 0;
+  for (let k = start; k < lines.length; k++) {
+    const line = lines[k]; let v;
+    if (/^\(01\)|^\]d2|\u001d/.test(line)) {
+      const f = parseGS1(line);
+      if (gtin && f['01'] && f['01'] !== gtin) { wrong++; continue; }
+      if (lot && f['10'] && f['10'].toUpperCase() !== lot.toUpperCase()) { wrong++; continue; }
+      v = f['21'] || '';
+    } else v = (line.split(/[,;\t]/)[col] || '').trim().replace(/^"|"$/g, '');
+    if (!SERIAL_OK.test(v)) { bad++; continue; }
+    if (good.has(v)) { dup++; continue; } good.add(v);
+  }
+  return { serials: [...good], bad, wrong, dup };
+}
+function downloadTemplate(lot) {
+  const rows = ['serial'].concat(Array.from({ length: 5 }, (_, i) => (lot || 'LOT') + '-' + String(i + 1).padStart(5, '0')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n') + '\n'], { type: 'text/csv' }));
+  a.download = 'checkam-serials-template.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+async function renderBatches(demo, demoData) {
+  const card = $('batchCard'); if (!card) return;
+  const prods = (demo ? demoData.products : products).filter(p => p.gtin);
+  if (demo) batches = demoData.batches || [];
+  else { const r = await sb.rpc('my_batches'); batches = (r.data || []); if (r.error) toast(errText(r.error)); }
+  const tot = batches.reduce((a, b) => ({ s: a.s + (+b.serials || 0), sc: a.sc + (+b.scanned || 0), c: a.c + (+b.copies || 0) }), { s: 0, sc: 0, c: 0 });
+  card.innerHTML = '<div class="row" style="justify-content:space-between"><div><h3>Batches and serial numbers</h3><p class="sub" style="margin-top:4px">Add each batch you release, then upload its serial numbers. Buyers who scan a pack on your list see <b>Genuine</b>. Unknown serials are flagged as likely fake.</p></div>' +
+      (demo ? '<span class="tag t-warn">Example data</span>' : '') + '</div>' +
+    '<div class="kpis"><div class="kpi"><b>' + batches.length + '</b><span>batches</span></div><div class="kpi"><b>' + tot.s.toLocaleString() + '</b><span>serial numbers</span></div><div class="kpi"><b>' + tot.sc.toLocaleString() + '</b><span>packs scanned by buyers</span></div><div class="kpi"><b>' + tot.c.toLocaleString() + '</b><span>possible copied codes</span></div></div>' +
+    (batches.length ? '<div class="scroll"><table class="t"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Serials</th><th>Scanned</th><th>Possible copies</th><th></th></tr></thead><tbody>' +
+      batches.map(b => '<tr><td>' + esc(b.product) + (b.strength ? ' <span class="note">' + esc(b.strength) + '</span>' : '') + '</td><td><b>' + esc(b.lot) + '</b>' + (b.recalled ? ' <span class="tag t-bad">Recalled</span>' : '') + '</td><td>' + esc(fmtDate(b.exp_date)) + '</td><td>' + (+b.serials).toLocaleString() + (b.quantity ? ' <span class="note">of ' + (+b.quantity).toLocaleString() + '</span>' : '') + '</td><td>' + (+b.scanned).toLocaleString() + '</td><td>' + ((+b.copies) ? '<span class="tag t-bad">' + b.copies + '</span>' : '0') + '</td>' +
+        '<td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn soft small" type="button" data-upl="' + esc(b.id) + '">Upload serials</button>' + (demo ? '' : '<button class="btn soft small" type="button" data-rec="' + esc(b.id) + '">' + (b.recalled ? 'Undo recall' : 'Recall') + '</button><button class="btn soft small" type="button" data-delb="' + esc(b.id) + '">Delete</button>') + '</div></td></tr>').join('') +
+      '</tbody></table></div>' : '<p class="note" style="margin:10px 0">No batches yet. Add your first one below.</p>') +
+    '<details style="margin-top:16px"' + (batches.length ? '' : ' open') + '><summary><b>Add a batch</b></summary>' +
+      (prods.length ? '<div class="grid3"><div><label class="f" for="bProd">Product</label><select class="input" id="bProd">' + prods.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name + (p.strength ? ' ' + p.strength : '')) + '</option>').join('') + '</select></div>' +
+        '<div><label class="f" for="bLot">Batch number</label><input class="input" id="bLot" placeholder="as printed on the pack"></div><div><label class="f" for="bQty">Quantity <small>(packs)</small></label><input class="input" id="bQty" inputmode="numeric"></div></div>' +
+        '<div class="grid3"><div><label class="f" for="bMfg">Manufactured</label><input class="input" id="bMfg" type="date"></div><div><label class="f" for="bExp">Expiry</label><input class="input" id="bExp" type="date"></div></div>' +
+        '<p class="err" id="bErr" role="alert"></p><button class="btn" id="bAdd" type="button">' + (demo ? 'Add batch (demo, not saved)' : 'Add batch') + '</button>'
+        : '<p class="note" style="margin-top:8px">None of your products has a product number (GTIN) yet. Contact CheckAm to add it.</p>') +
+    '</details>' +
+    '<div id="upBox"></div>';
+  card.querySelectorAll('[data-upl]').forEach(b => b.addEventListener('click', () => openUploader(demo, batches.find(x => x.id === b.dataset.upl))));
+  card.querySelectorAll('[data-rec]').forEach(b => b.addEventListener('click', async () => {
+    const x = batches.find(y => y.id === b.dataset.rec);
+    const r = await sb.from('mfr_batches').update({ recalled: !x.recalled, recall_note: x.recalled ? null : 'Recalled by the manufacturer' }).eq('id', x.id);
+    if (r.error) return toast(errText(r.error));
+    toast(x.recalled ? 'Recall removed' : 'Batch recalled. Buyers who scan it are told not to use it.'); renderBatches(false);
+  }));
+  card.querySelectorAll('[data-delb]').forEach(b => b.addEventListener('click', async () => {
+    const x = batches.find(y => y.id === b.dataset.delb);
+    if (b.dataset.confirm !== '1') { b.dataset.confirm = '1'; b.textContent = 'Confirm delete'; b.classList.add('danger'); return; }
+    const r = await sb.from('mfr_batches').delete().eq('id', x.id);
+    if (r.error) return toast(errText(r.error));
+    toast('Batch ' + x.lot + ' deleted with its serial numbers'); renderBatches(false);
+  }));
+  const add = $('bAdd'); if (add) add.addEventListener('click', async () => {
+    const lot = $('bLot').value.trim(), exp = $('bExp').value;
+    if (!lot || !exp) { $('bErr').textContent = 'Enter the batch number and expiry date.'; return; }
+    if (demo) {
+      const p = prods.find(x => x.id === $('bProd').value);
+      batches.unshift({ id: 'demo-' + Date.now(), product: p.name, strength: p.strength, gtin: p.gtin, lot, exp_date: exp, quantity: +$('bQty').value || null, serials: 0, scanned: 0, copies: 0 });
+      demoData.batches = batches; toast('Demo batch added (not saved)'); return renderBatches(true, demoData);
+    }
+    const r = await sb.from('mfr_batches').insert({ manufacturer_id: mfr.id, product_id: $('bProd').value, lot, exp_date: exp, mfg_date: $('bMfg').value || null, quantity: +$('bQty').value || null });
+    if (r.error) { $('bErr').textContent = /duplicate|unique/i.test(errText(r.error)) ? 'This batch number already exists for that product.' : errText(r.error); return; }
+    toast('Batch added. Now upload its serial numbers.'); renderBatches(false);
+  });
+}
+function openUploader(demo, b) {
+  upTarget = b;
+  const box = $('upBox');
+  box.innerHTML = '<div class="uploader"><div class="row" style="justify-content:space-between"><h3>Upload serial numbers for batch ' + esc(b.lot) + '</h3><button class="btn soft small" type="button" id="upClose">Close</button></div>' +
+    '<p class="sub" style="margin-top:6px">Use a CSV or text file with one serial number per line (a column named <b>serial</b> is fine), or paste them below. Full GS1 codes such as (01)…(10)…(21)… also work. Up to 20 characters each.</p>' +
+    '<div class="row" style="margin-top:12px"><label class="btn soft small">Choose file<input class="sr" type="file" id="upFile" accept=".csv,.txt,text/csv,text/plain"></label><button class="btn soft small" type="button" id="upTpl">Download a template</button>' + (demo ? '<button class="btn soft small" type="button" id="upSample">Use example serials</button>' : '') + '</div>' +
+    '<label class="f" for="upText">Or paste serial numbers</label><textarea class="input" id="upText" rows="6" placeholder="ABC0000001&#10;ABC0000002&#10;ABC0000003"></textarea>' +
+    '<p class="note" id="upPreview" style="margin-top:8px"></p><div class="progress" id="upProg" hidden style="margin:10px 0"><i style="width:0"></i></div>' +
+    '<p class="err" id="upErr" role="alert"></p><button class="btn" id="upGo" type="button" disabled>Upload</button></div>';
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  let parsed = { serials: [] };
+  const preview = () => {
+    parsed = parseSerials($('upText').value, b.gtin, b.lot);
+    $('upPreview').textContent = parsed.serials.length.toLocaleString() + ' serial numbers ready' + (parsed.dup ? ', ' + parsed.dup + ' duplicates skipped' : '') + (parsed.bad ? ', ' + parsed.bad + ' lines not valid' : '') + (parsed.wrong ? ', ' + parsed.wrong + ' codes from another product or batch skipped' : '') + '.';
+    $('upGo').disabled = !parsed.serials.length;
+    $('upGo').textContent = demo ? 'Upload ' + parsed.serials.length.toLocaleString() + ' (demo, not saved)' : 'Upload ' + parsed.serials.length.toLocaleString() + ' serial numbers';
+  };
+  $('upClose').addEventListener('click', () => { box.innerHTML = ''; });
+  $('upTpl').addEventListener('click', () => downloadTemplate(b.lot));
+  const smp = $('upSample'); if (smp) smp.addEventListener('click', () => { $('upText').value = 'serial\n' + Array.from({ length: 25 }, (_, i) => 'DEMO' + String(201 + i).padStart(4, '0')).join('\n'); preview(); });
+  $('upText').addEventListener('input', preview);
+  $('upFile').addEventListener('change', async ev => {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    if (f.size > 20 * 1024 * 1024) return toast('That file is larger than 20 MB. Split it into parts.');
+    $('upText').value = await f.text(); preview();
+  });
+  $('upGo').addEventListener('click', async () => {
+    const list = parsed.serials; if (!list.length) return;
+    const go = $('upGo'), bar = $('upProg'); go.disabled = true; bar.hidden = false; $('upErr').textContent = '';
+    let done = 0, added = 0;
+    try {
+      for (let i = 0; i < list.length; i += 2000) {
+        const chunk = list.slice(i, i + 2000);
+        if (demo) await new Promise(r => setTimeout(r, 350)); else { const r = await sb.rpc('add_serials', { p_batch: b.id, p_serials: chunk }); if (r.error) throw r.error; added += r.data || 0; }
+        done += chunk.length; bar.firstChild.style.width = (done / list.length * 100) + '%'; go.textContent = 'Uploading… ' + done.toLocaleString() + ' of ' + list.length.toLocaleString();
+      }
+      if (demo) { b.serials = (+b.serials || 0) + list.length; toast(list.length + ' serial numbers uploaded (demo). In your account these packs would now scan as Genuine.'); renderBatches(true, Object.assign(window.__demoData || {}, { batches })); return; }
+      toast(added.toLocaleString() + ' new serial numbers added' + (added < list.length ? ' (' + (list.length - added) + ' were already on your list)' : ''));
+      renderBatches(false);
+    } catch (e) { $('upErr').textContent = errText(e) + ' (' + done.toLocaleString() + ' uploaded before the error)'; go.disabled = false; go.textContent = 'Try again'; }
+  });
 }
 })();

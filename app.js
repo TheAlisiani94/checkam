@@ -86,16 +86,40 @@ const ICON = {
 const LEVEL = {
   ok:   { stamp: 'No red flags', small: 'Checked by CheckAm', title: 'No red flags found', line: 'Nothing we checked looks wrong. Still buy from a licensed pharmacy.' },
   warn: { stamp: 'Check well', small: 'Ask the pharmacist', title: 'Check this pack carefully', line: 'Something needs a closer look before you use it.' },
-  bad:  { stamp: "Don't use", small: 'Likely problem', title: 'This pack looks wrong', line: "Don't take it. Show it to a pharmacist and report it." }
+  bad:  { stamp: "Don't use", small: 'Likely problem', title: 'This pack looks wrong', line: "Don't take it. Show it to a pharmacist and report it." },
+  genuine: { stamp: 'Genuine', small: 'Confirmed by maker', title: 'Genuine pack', line: 'Confirmed by the manufacturer. Still check the seal and expiry before use.' }
 };
 
 /* ---------- samples ---------- */
+const DEMO_MAKER = 'Demo Pharma Ltd (example only)';
 const SAMPLES = [
+  { name: 'Genuine pack', note: 'Confirmed by the maker', color: '#0b6b45', raw: '(01)06159999000011(17)290131(10)DQ2601(21)DEMO0042', printed: 'yes', copy: { others: 0, cities: [] }, verify: { enrolled: true, verdict: 'genuine', maker: DEMO_MAKER, product: 'Demoquine (example)', strength: '80/480 mg', lot: 'DQ2601' } },
   { name: 'Normal pack', note: 'All checks pass', color: '#13915f', raw: '(01)06151234567891(17)271130(10)LT2405A(21)8KQ2M7XZ41', printed: 'yes', copy: { others: 0, cities: [] } },
   { name: 'Changed expiry', note: 'Box date relabelled', color: '#f4b400', raw: '(01)06151234567891(17)250331(10)LT2311C(21)P3M9RT22B8', printed: 'no', copy: { others: 0, cities: [] } },
   { name: 'Copied code', note: 'Serial seen elsewhere', color: '#d7263d', raw: '(01)06151234567891(17)280630(10)LT2501B(21)7HD2KQ90XA', printed: 'yes', copy: { others: 3, cities: ['kano', 'aba'] } },
-  { name: 'Invented number', note: 'Fails the number test', color: '#d7263d', raw: '(01)06151234567895(17)280630(10)BX01(21)00000001', printed: null, copy: { others: 0, cities: [] } }
+  { name: 'Invented number', note: 'Fails the number test', color: '#d7263d', raw: '(01)06151234567895(17)280630(10)BX01(21)00000001', printed: null, copy: { others: 0, cities: [] } },
+  { name: 'Not on maker\'s list', note: 'Serial the maker never made', color: '#d7263d', raw: '(01)06159999000011(17)290131(10)DQ2601(21)ZZ998877', printed: 'yes', copy: { others: 0, cities: [] }, verify: { enrolled: true, verdict: 'unknown_serial', maker: DEMO_MAKER, product: 'Demoquine (example)', strength: '80/480 mg', lot: 'DQ2601', batch_known: true } }
 ];
+
+/* Manufacturer records: what the maker's own list says about this pack. */
+function verifyItems(v, add) {
+  if (!v || !v.enrolled) return false;
+  const who = v.maker || 'The manufacturer', what = [v.product, v.strength].filter(Boolean).join(' ');
+  switch (v.verdict) {
+    case 'genuine': add('ok', 'Genuine. ' + who + ' confirms this serial number belongs to ' + (what || 'this product') + (v.lot ? ', batch ' + v.lot : '') + '.'); return true;
+    case 'genuine_seen': add('warn', who + ' made a pack with this serial number, but it was already scanned on another phone' + (v.first_city ? ' (first in ' + v.first_city + ')' : '') + '. Genuine codes are sometimes copied onto fakes. Compare the pack carefully and ask where it came from.'); return true;
+    case 'unknown_serial': add('bad', who + ' has no record of this serial number' + (v.batch_known && v.lot ? ' in batch ' + v.lot : '') + '. This pack is likely fake. Don\'t use it, and report it.'); return true;
+    case 'mismatch': add('bad', 'On ' + who + '\'s records this serial belongs to batch ' + (v.lot || '?') + (v.exp ? ', expiring ' + fmtDate(new Date(v.exp + 'T00:00:00')) : '') + ', but the pack shows different details. It may have been relabelled.'); return true;
+    case 'recalled': add('bad', who + ' has recalled batch ' + (v.lot || '') + '. Don\'t use it. Take it back to where you bought it.' + (v.recall_note ? ' Note: ' + v.recall_note : '')); return true;
+    case 'batch_ok':
+      if (v.exp_ok === false) add('bad', 'Batch ' + v.lot + ' is on ' + who + '\'s records, but with a different expiry date. The date may have been changed.');
+      else add('ok', 'Batch ' + v.lot + ' is on ' + who + '\'s records. Serial numbers for this batch are not uploaded yet, so the exact pack cannot be confirmed.');
+      return false;
+    case 'not_uploaded': add('info', who + ' is a verified CheckAm partner but has not uploaded this batch yet, so this pack cannot be confirmed.'); return false;
+    case 'no_serial': add('info', 'This product is from a verified partner, ' + who + ', but the code has no serial number to confirm.'); return false;
+  }
+  return false;
+}
 
 /* ---------- evaluation ---------- */
 function evaluate(e) {
@@ -118,7 +142,8 @@ function evaluate(e) {
     else if (e.printed === 'no') add('bad', 'The date printed on the box does not match the code (' + fmtMonth(exp) + '). The date may have been changed to hide old stock.');
     else if (e.printed === 'none') add('warn', "You couldn't find a printed expiry date. Genuine packs always show one.");
   }
-  if (g && sn) {
+  const makerSpoke = verifyItems(e.verify, add);
+  if (g && sn && !makerSpoke) {
     const c = e.copy;
     if (c === 'off') add('info', 'Copy check needs an internet connection. Try again when you are online.');
     else if (c && c.others === 0) add('ok', 'Nobody else has scanned this serial number. That is what we expect from a genuine pack.');
@@ -132,7 +157,9 @@ function evaluate(e) {
   }
   const rank = { bad: 0, warn: 1, ok: 2, info: 3 };
   items.sort((x, y) => rank[x[0]] - rank[y[0]]);
-  return { level, items, g, sn, lot: f['10'] || '', exp };
+  const genuine = level === 'ok' && e.verify && e.verify.verdict === 'genuine';
+  const gi = items.findIndex(x => /^Genuine\. /.test(x[1])); if (gi > 0) items.unshift(items.splice(gi, 1)[0]);
+  return { level, items, g, sn, lot: f['10'] || '', exp, genuine };
 }
 
 /* ---------- screens ---------- */
@@ -201,15 +228,18 @@ $('placeChip').addEventListener('click', () => {
 let current = null;
 async function runCheck(fields, opts = {}) {
   const p = place();
-  const e = { id: Date.now().toString(36), t: Date.now(), fields, printed: opts.printed ?? null, copy: opts.copy ?? null, opts: { city: p.city, state: p.state, sample: !!opts.sample, tour: !!opts.tour, name: opts.name || '' } };
+  const e = { id: Date.now().toString(36), t: Date.now(), fields, printed: opts.printed ?? null, copy: opts.copy ?? null, verify: opts.verify ?? null, opts: { city: p.city, state: p.state, sample: !!opts.sample, tour: !!opts.tour, name: opts.name || '' } };
   $('s-result').innerHTML = '<div class="carton"><div class="flap">Checking…</div><dl><dt>Reading</dt><dd>Product, batch, expiry, serial</dd></dl></div>';
   go('result');
   const g = (fields['01'] || '').replace(/\D/g, ''), sn = fields['21'] || '';
-  if (!e.opts.sample && g && sn && e.copy == null) {
-    try {
-      const r = await Api.rpc('check_serial', { p_key: g + '|' + sn, p_device: device });
-      e.copy = { others: +(r && r.others) || 0, cities: (r && r.cities) || [] };
-    } catch (err) { e.copy = 'off'; }
+  if (!e.opts.sample && g) {
+    const exp = parseYMD(fields['17']);
+    const [cs, vp] = await Promise.allSettled([
+      sn && e.copy == null ? Api.rpc('check_serial', { p_key: g + '|' + sn, p_device: device }) : Promise.resolve(null),
+      Api.on ? Api.rpc('verify_pack', { p_gtin: g, p_serial: sn, p_lot: fields['10'] || '', p_exp: exp ? exp.toISOString().slice(0, 10) : null, p_device: device, p_city: e.opts.city, p_state: e.opts.state, p_record: true }) : Promise.resolve(null)
+    ]);
+    if (sn && e.copy == null) e.copy = cs.status === 'fulfilled' && cs.value ? { others: +cs.value.others || 0, cities: cs.value.cities || [] } : 'off';
+    if (vp.status === 'fulfilled' && vp.value && vp.value.enrolled) { e.verify = vp.value; rememberProduct(g, [vp.value.product, vp.value.strength].filter(Boolean).join(' '), vp.value.maker); }
   }
   const res = evaluate(e);
   if (!e.opts.sample) {
@@ -217,19 +247,20 @@ async function runCheck(fields, opts = {}) {
     if (Api.on && g) Api.rpc('log_scan', { p_key: g + '|' + sn, p_gtin: g, p_serial: sn, p_lot: res.lot, p_exp: res.exp ? res.exp.toISOString().slice(0, 10) : null, p_city: e.opts.city, p_state: e.opts.state, p_level: res.level, p_device: device }).catch(() => {});
   }
   renderResult(e, true);
-  if (navigator.vibrate && !reduceMotion) navigator.vibrate(res.level === 'ok' ? 40 : [60, 60, 60]);
+  if (navigator.vibrate && !reduceMotion) navigator.vibrate(res.level === 'ok' ? (res.genuine ? [40, 40, 120] : 40) : [60, 60, 60]);
 }
 function updateHistory(e) { const h = store.get('history', []); const i = h.findIndex(x => x.id === e.id); if (i >= 0) { h[i] = e; store.set('history', h); } }
 
 function renderResult(e, animate) {
   current = e;
-  const r = evaluate(e), L = LEVEL[r.level];
+  const r = evaluate(e), L = Object.assign({}, r.genuine ? LEVEL.genuine : LEVEL[r.level]);
+  if (r.genuine && e.verify.maker) L.line = 'Confirmed by ' + e.verify.maker + '. Still check the seal and expiry before use.';
   const nudge = !e.opts.sample && !store.get('profile', null) && Date.now() - store.get('nudgeAt', 0) > 3 * 864e5;
   const ask = r.exp && e.printed == null;
   $('s-result').innerHTML =
     '<div class="top" style="margin-bottom:10px"><button class="chip" id="backBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>' + (e.opts.sample ? '<span class="tag t-warn">Sample, made-up data</span>' : '<span class="sub" style="font-size:14px">' + esc(ago(e.t)) + '</span>') + '</div>' +
     '<div class="carton ' + r.level + (animate ? ' enter thunk' : '') + '">' +
-      '<div class="flap">' + esc(e.opts.sample ? e.opts.name : 'Medicine pack') + '</div>' +
+      '<div class="flap">' + esc(e.verify && e.verify.product ? [e.verify.product, e.verify.strength].filter(Boolean).join(' ') : (e.opts.sample ? e.opts.name : 'Medicine pack')) + '</div>' +
       '<dl><dt>Product no.</dt><dd>' + esc(r.g || '—') + '</dd><dt>Batch</dt><dd>' + esc(r.lot || '—') + '</dd><dt>Expiry</dt><dd>' + esc(fmtDate(r.exp)) + '</dd><dt>Serial</dt><dd>' + esc(r.sn || '—') + '</dd></dl>' +
       '<div class="stamp ' + r.level + '" aria-hidden="true"><div>' + esc(L.stamp) + '<small>' + esc(L.small) + '</small></div></div>' +
     '</div>' +
@@ -446,7 +477,7 @@ $('typeBtn').addEventListener('click', openType);
 
 /* ---------- samples ---------- */
 $('samples').innerHTML = SAMPLES.map((s, i) => '<button class="sample" type="button" data-s="' + i + '"><i style="background:' + s.color + '"></i><strong>' + esc(s.name) + '</strong><small>' + esc(s.note) + '</small></button>').join('');
-$('samples').querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', () => { const s = SAMPLES[+b.dataset.s]; runCheck(parseGS1(s.raw), { sample: true, name: s.name, printed: s.printed, copy: s.copy }); }));
+$('samples').querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', () => { const s = SAMPLES[+b.dataset.s]; runCheck(parseGS1(s.raw), { sample: true, name: s.name, printed: s.printed, copy: s.copy, verify: s.verify }); }));
 
 /* ---------- history ---------- */
 function renderHistory() {
@@ -676,7 +707,7 @@ async function showTourStep(i) {
   const prev = tourStep; tourStep = i; const st = TOUR[i];
   $('tour').classList.add('moving'); $('tourHand').classList.remove('tap');
   if (st.example && !(prev > i && currentScreen === 'result')) {
-    const s = SAMPLES[1];
+    const s = SAMPLES.find(x => x.name === 'Changed expiry');
     await runCheck(parseGS1(s.raw), { sample: true, tour: true, name: 'Example pack', printed: s.printed, copy: s.copy });
     await sleep(1700);
   } else if (st.tab && currentScreen !== st.tab) { go(st.tab); await sleep(380); }

@@ -17,6 +17,10 @@
   <div class="row" id="who"></div>
 </div></header>
 <main id="view" aria-live="polite"><p class="sub">Loading…</p></main>
+<dialog class="modal" id="authDlg" aria-labelledby="authH">
+  <button class="modal-x" type="button" id="authX" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></button>
+  <div id="authBody"></div>
+</dialog>
 <div class="toast" id="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>

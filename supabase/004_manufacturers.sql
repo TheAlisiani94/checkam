@@ -440,8 +440,8 @@ begin
       'Ada Example', 'Head of Quality', '0800 000 0001', now() - interval '6 days', now() - interval '1 day')
     returning id into d;
     insert into mfr_products(manufacturer_id, name, strength, dosage_form, pack_size, gtin, nafdac_no, nafdac_expiry, country) values
-      (d, 'Demoquine (example)', '80/480 mg', 'Tablet', '6 tablets', '06159999000014', 'A4-0000', now()::date + 900, 'Nigeria'),
-      (d, 'Democillin (example)', '500 mg', 'Capsule', '10 x 10 capsules', '06159999000021', 'A4-0001', now()::date + 600, 'Nigeria');
+      (d, 'Demoquine (example)', '80/480 mg', 'Tablet', '6 tablets', '06159999000011', 'A4-0000', now()::date + 900, 'Nigeria'),
+      (d, 'Democillin (example)', '500 mg', 'Capsule', '10 x 10 capsules', '06159999000028', 'A4-0001', now()::date + 600, 'Nigeria');
     insert into mfr_checks(manufacturer_id, kind, status, note, checked_at)
       select d, k, 'passed', n, now() - interval '2 days' from (values
         ('nafdac','Both products found in the NAFDAC Greenbook under Demo Pharma Ltd, status active'),

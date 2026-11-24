@@ -19,10 +19,8 @@ const GUIDE = {
   pcn: 'Find the premises on PCN\'s Verify Premises. The address and licence year must match.',
   cac: 'Search the RC number. Name, address and active status must match the application.',
   gs1: 'Look up one of the product numbers. It must be licensed to this company.',
-  email: 'Generate a code. It is queued in the Outbox to the official email. The company enters it on their dashboard.',
-  courier: 'Generate a code and print the letter. Send it by courier to the factory address on the public records, not only the address on the form.',
-  phone: 'Find the phone number on public records (Greenbook, company website, CAC), call it, and ask for the contact person. Record who you spoke to.',
-  letter: 'Open the letter of authority. It must be on letterhead, signed by a director, and name the contact person.'
+  email: 'A code was emailed automatically when the company submitted (see the Outbox). They enter it on their dashboard. Resend only if they lost it.',
+  courier: 'Generate a code and print the letter. Send it by courier to the factory address on the public records, not only the address on the form.'
 };
 
 if (!sb) { view.innerHTML = '<div class="card"><h2>Not connected</h2></div>'; return; }
@@ -140,7 +138,7 @@ function checkCard(m, ck, x) {
     (x.note ? '<p style="margin-top:6px;font-size:15px"><b>Recorded: </b>' + esc(x.note) + (x.checked_at ? ' <span class="note">(' + esc(fmtDate(x.checked_at)) + ')</span>' : '') + '</p>' : '') +
     (x.evidence_path ? '<button class="btn soft small" type="button" data-open="' + esc(x.evidence_path) + '" style="margin-top:6px">Open evidence</button>' : '') +
     (editable ? '<div class="row" style="margin-top:10px">' + links +
-      (ck.kind === 'email' || ck.kind === 'courier' ? '<button class="btn soft small" type="button" data-code="' + ck.kind + '">' + (ck.kind === 'email' ? 'Generate and queue email code' : 'Generate courier code') + '</button>' : '') +
+      (ck.kind === 'email' || ck.kind === 'courier' ? '<button class="btn soft small" type="button" data-code="' + ck.kind + '">' + (ck.kind === 'email' ? 'Resend email code' : 'Generate courier code') + '</button>' : '') +
       (ck.kind === 'phone' && m.public_phone ? '<a class="btn soft small" href="tel:' + esc(m.public_phone.replace(/[^\d+]/g, '')) + '">Number on form: ' + esc(m.public_phone) + '</a>' : '') +
       '</div><div id="codeOut_' + ck.kind + '"></div>' +
       '<label class="f" for="note_' + ck.kind + '">How was this confirmed?</label><input class="input" id="note_' + ck.kind + '" placeholder="e.g. Greenbook: A4-1234 listed under this company, active">' +

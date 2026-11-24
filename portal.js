@@ -14,10 +14,8 @@ const CHECKS = [
   { kind: 'pcn', title: 'PCN premises licence', who: 'Checked against PCN\'s Verify Premises record', how: 'Your premises must be registered with the Pharmacy Council of Nigeria and the licence current.' },
   { kind: 'cac', title: 'CAC company record', who: 'Checked against the CAC public search', how: 'Your company must be active, with the same name and address as your application.' },
   { kind: 'gs1', title: 'GS1 product numbers', who: 'Checked with Verified by GS1', how: 'The GS1 company prefix must be licensed to your company, so nobody else can register your products.' },
-  { kind: 'email', title: 'Official email', who: 'Code sent to your official email', how: 'Enter the code we email to your company address. It proves you control the company\'s email.' },
-  { kind: 'courier', title: 'Factory address', who: 'Code sent by courier', how: 'We send a code by courier to the factory address on your public records. Enter it here when it arrives.' },
-  { kind: 'phone', title: 'Phone call back', who: 'CheckAm calls your public number', how: 'We call the phone number listed for your company in public records, not the one on this form, to confirm the application.' },
-  { kind: 'letter', title: 'Letter of authority', who: 'Reviewed by CheckAm', how: 'A signed letter on company letterhead naming the person who manages this account.' }
+  { kind: 'email', title: 'Official email', who: 'Code sent automatically to your official email', how: 'Enter the code we email to your company address. It proves you control the company\'s email.' },
+  { kind: 'courier', title: 'Factory address', who: 'Code sent by courier', how: 'We send a code by courier to the factory address on your public records. Enter it here when it arrives.' }
 ];
 const CHECK = Object.fromEntries(CHECKS.map(c => [c.kind, c]));
 const DOCS = [
@@ -25,7 +23,6 @@ const DOCS = [
   { kind: 'nafdac', title: 'NAFDAC certificate(s) of registration', many: true },
   { kind: 'pcn', title: 'PCN premises licence (current year)' },
   { kind: 'gs1', title: 'GS1 Nigeria membership certificate' },
-  { kind: 'letter', title: 'Letter of authority on company letterhead' },
   { kind: 'other', title: 'Other supporting documents (optional)', many: true }
 ];
 const STATUS = {
@@ -64,9 +61,22 @@ function renderChecks(checks, opts = {}) {
   }).join('') + '</div>';
 }
 function progress(checks) {
-  const n = (checks || []).filter(c => c.status === 'passed').length;
-  return '<div class="row" style="justify-content:space-between;margin-bottom:6px"><b>' + n + ' of 8 checks passed</b><span class="note">' + (n === 8 ? 'Complete' : 'Approval is automatic when all 8 pass') + '</span></div><div class="progress"><i style="width:' + (n / 8 * 100) + '%"></i></div>';
+  const n = (checks || []).filter(c => c.status === 'passed' && CHECK[c.kind]).length;
+  return '<div class="row" style="justify-content:space-between;margin-bottom:6px"><b>' + n + ' of ' + CHECKS.length + ' checks passed</b><span class="note">' + (n === CHECKS.length ? 'Complete' : 'Approval is automatic when all ' + CHECKS.length + ' pass') + '</span></div><div class="progress"><i style="width:' + (n / CHECKS.length * 100) + '%"></i></div>';
 }
 
-window.CK = { CFG, $, esc, fmtDate, STATES, CHECKS, CHECK, DOCS, STATUS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress };
+function parseGS1(text) {
+  let t = String(text).trim(); const out = {};
+  if (/^\(\d{2,4}\)/.test(t)) { const re = /\((\d{2,4})\)([^(]*)/g; let m; while ((m = re.exec(t))) out[m[1]] = m[2].trim(); return out; }
+  t = t.replace(/^\]d2|^\]C1/, '').replace(/^\u001d/, '');
+  const fixed = { '01': 14, '11': 6, '17': 6 }; let i = 0, guard = 0;
+  while (i < t.length && guard++ < 12) {
+    const two = t.slice(i, i + 2);
+    if (fixed[two]) { out[two] = t.slice(i + 2, i + 2 + fixed[two]); i += 2 + fixed[two]; continue; }
+    if (two === '10' || two === '21') { let j = t.indexOf('\u001d', i + 2); if (j < 0) j = t.length; out[two] = t.slice(i + 2, j); i = j + 1; continue; }
+    break;
+  }
+  return out;
+}
+window.CK = { CFG, $, esc, fmtDate, STATES, CHECKS, CHECK, DOCS, STATUS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress, parseGS1 };
 })();
