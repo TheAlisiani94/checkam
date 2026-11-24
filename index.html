@@ -207,6 +207,16 @@ h3.mini{font-size:17px;margin:20px 0 10px}
 .mine-box{margin-top:14px;padding:14px;border-radius:var(--r-md);background:light-dark(#fff0c2,#3a2f0a);font-size:15px}
 b.mine{color:var(--saffron-ink)}
 
+.search{position:relative;margin-top:-4px}
+.search svg{position:absolute;left:14px;top:50%;width:22px;height:22px;transform:translateY(-50%);color:var(--soft);pointer-events:none}
+.search input{width:100%;min-height:52px;padding:12px 14px 12px 46px;border-radius:999px;border:1.5px solid var(--line);background:var(--paper);font-size:17px}
+.search input:focus{border-color:var(--leaf);outline:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--leaf) 25%,transparent)}
+.filters{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:8px;margin-top:10px}
+.filters .input{min-height:46px;padding:8px 12px;font-size:15px;border-radius:999px}
+#aMore{margin-top:6px}
+.sheet-x{position:sticky;top:0;float:right;margin:-6px -6px 0 10px;width:44px;height:44px;border-radius:50%;border:1.5px solid var(--line);background:var(--paper);color:var(--ink);display:grid;place-items:center;z-index:3;box-shadow:0 4px 12px -6px rgba(0,0,0,.35)}
+.sheet-x svg{width:20px;height:20px}
+
 /* Motion — only where it answers an action, plus one idle cue on the scan button */
 @media (prefers-reduced-motion:no-preference){
   .screen{transition:opacity .28s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s}
@@ -282,7 +292,18 @@ b.mine{color:var(--saffron-ink)}
   <!-- ALERTS -->
   <section class="screen" id="s-alerts" aria-labelledby="h-alerts">
     <div class="top"><h2 id="h-alerts">Alerts</h2></div>
+    <form class="search" id="aForm" role="search" onsubmit="return false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+      <input id="aQ" type="search" enterkeyhint="search" autocomplete="off" placeholder="Search product, batch or number" aria-label="Search alerts">
+    </form>
+    <div class="filters">
+      <select class="input" id="aState" aria-label="State"></select>
+      <select class="input" id="aDays" aria-label="Time"><option value="30">Last 30 days</option><option value="180">Last 6 months</option><option value="0">All time</option></select>
+    </div>
+    <p class="sub" id="aCount" role="status" style="margin:12px 0 4px;font-size:15px"></p>
+    <p class="note" style="margin:0 0 14px">Reported by CheckAm users. Not yet confirmed by NAFDAC. Tap an alert for details.</p>
     <div id="flagList"></div>
+    <button class="btn soft" id="aMore" type="button" hidden>Show more</button>
     <div class="section">
       <h3>Spot a fake before you buy</h3>
       <div class="tips" id="tips"></div>
@@ -339,7 +360,7 @@ b.mine{color:var(--saffron-ink)}
 
 <!-- Sheets -->
 <div class="sheet-bg" id="sheetBg"></div>
-<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetH"><div id="sheetBody"></div></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetH"><button class="sheet-x" id="sheetX" type="button" aria-label="Close"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></button><div id="sheetBody"></div></div>
 
 <!-- Onboarding -->
 <div class="onboard" id="onboard" role="dialog" aria-modal="true" aria-label="Welcome">

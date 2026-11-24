@@ -160,16 +160,26 @@ let toastT;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2800); }
 
 /* ---------- sheets ---------- */
-let sheetClose = null;
+let sheetClose = null, sheetOpen = false;
 function openSheet(html, onMount) {
   $('sheetBody').innerHTML = html; $('sheet').classList.add('on'); $('sheetBg').classList.add('on');
+  if (!sheetOpen) { sheetOpen = true; try { history.pushState({ checkamSheet: 1 }, ''); } catch (e) {} }
   if (onMount) onMount();
   $('sheet').scrollTop = 0;
-  const first = $('sheet').querySelector('input,textarea,select') || $('sheet').querySelector('h2');
+  const first = $('sheetBody').querySelector('input,textarea,select') || $('sheetBody').querySelector('h2');
   if (first) { if (first.tagName === 'H2') first.setAttribute('tabindex', '-1'); setTimeout(() => first.focus({ preventScroll: true }), 300); }
 }
-function closeSheet() { $('sheet').classList.remove('on'); $('sheetBg').classList.remove('on'); if (sheetClose) { sheetClose(); sheetClose = null; } }
-$('sheetBg').addEventListener('click', closeSheet);
+// fromHistory: the phone's Back button already removed the history step
+function closeSheet(fromHistory) {
+  if (!sheetOpen) return;
+  sheetOpen = false;
+  $('sheet').classList.remove('on'); $('sheetBg').classList.remove('on');
+  if (sheetClose) { sheetClose(); sheetClose = null; }
+  if (fromHistory !== true) { try { if (history.state && history.state.checkamSheet) history.back(); } catch (e) {} }
+}
+addEventListener('popstate', () => { if (sheetOpen) closeSheet(true); });
+$('sheetBg').addEventListener('click', () => closeSheet());
+$('sheetX').addEventListener('click', () => closeSheet());
 document.addEventListener('keydown', ev => { if (ev.key === 'Escape') { if ($('scanner').classList.contains('on')) closeScanner(); else closeSheet(); } });
 
 /* ---------- place ---------- */
@@ -463,26 +473,64 @@ const TIPS = [
   ['Has a scratch panel? Text the PIN to the number shown to confirm with NAFDAC.', 'M8 4h16v24H8zM12 22h8']
 ];
 $('tips').innerHTML = TIPS.map(([t, d]) => '<div class="tip"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="' + d + '" fill="none" stroke="#0b6b45" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + esc(t) + '</span></div>').join('');
-let alertsCache = [];
 function myBatches() { const s = new Map(); store.get('history', []).forEach(h => { const k = (h.fields['01'] || '') + '|' + (h.fields['10'] || ''); if (!s.has(k)) s.set(k, h); }); return s; }
-async function renderAlerts() {
-  const box = $('flagList');
-  if (!Api.on) { box.innerHTML = '<div class="card"><h3>Community alerts</h3><p class="sub" style="margin-top:6px">When people find suspicious packs, they will be listed here so you know what to watch for.</p></div>'; return; }
-  if (!alertsCache.length) box.innerHTML = '<p class="sub">Loading alerts…</p>';
-  try {
-    const rows = ((await Api.rpc('recent_alerts', {})) || []).filter(x => x.gtin || x.product);
-    alertsCache = rows; store.set('alertsSeen', Date.now()); $('alertBadge').style.display = 'none';
-    rows.forEach(x => { if (x.product) rememberProduct(x.gtin, x.product, x.maker); });
-    if (!rows.length) { box.innerHTML = '<div class="card"><h3>No alerts this month</h3><p class="sub" style="margin-top:6px">Nobody has flagged a pack in the last 30 days. Keep checking before you buy.</p></div>'; return; }
-    const mine = myBatches();
-    box.innerHTML = '<p class="sub" style="margin:-10px 0 14px">Packs reported or flagged by CheckAm users in the last 30 days. Not yet confirmed by NAFDAC. Tap one for details.</p>' +
-      rows.map((x, i) => {
-        const n = (+x.reports || 0) + (+x.flagged_scans || 0), hit = mine.has(x.gtin + '|' + (x.lot || ''));
-        return '<button class="item" type="button" data-a="' + i + '"><span class="dot t-bad">' + ICON.bad.replace('class="draw" ', '') + '</span><span><strong>' + esc(x.product || 'Product name not added yet') + '</strong><small>Batch ' + esc(x.lot || 'not known') + ' · ' + esc((x.places || []).slice(0, 2).join(' · ') || 'Nigeria') + '</small><small>' + esc(ago(Date.parse(x.last_seen))) + (hit ? ' · <b class="mine">You checked this batch</b>' : '') + '</small></span><span class="tag t-bad">' + n + (n > 1 ? ' warnings' : ' warning') + '</span></button>';
-      }).join('');
-    box.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => openAlert(alertsCache[+b.dataset.a])));
-  } catch (e) { if (!alertsCache.length) box.innerHTML = '<div class="card"><h3>Alerts need internet</h3><p class="sub" style="margin-top:6px">Connect and open this tab again.</p></div>'; }
+const AQ = { q: '', state: '', days: 30, offset: 0, items: [], total: 0, seq: 0, ready: false };
+const DAYS_LABEL = { 30: 'in the last 30 days', 180: 'in the last 6 months', 0: 'at any time' };
+function initAlertFilters() {
+  if (AQ.ready) return; AQ.ready = true;
+  $('aState').innerHTML = '<option value="">All of Nigeria</option>' + STATES.map(s => '<option>' + s + '</option>').join('');
+  AQ.state = place().state || ''; $('aState').value = AQ.state;
+  let t;
+  $('aQ').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { AQ.q = $('aQ').value.trim().slice(0, 60); loadAlerts(true); }, 350); });
+  $('aQ').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(t); AQ.q = $('aQ').value.trim().slice(0, 60); $('aQ').blur(); loadAlerts(true); } });
+  $('aState').addEventListener('change', () => { AQ.state = $('aState').value; loadAlerts(true); });
+  $('aDays').addEventListener('change', () => { AQ.days = +$('aDays').value; loadAlerts(true); });
+  $('aMore').addEventListener('click', () => loadAlerts(false));
 }
+async function renderAlerts() { initAlertFilters(); loadAlerts(true); }
+async function loadAlerts(reset) {
+  const box = $('flagList');
+  if (!Api.on) { box.innerHTML = '<div class="card"><h3>Community alerts</h3><p class="sub" style="margin-top:6px">When people find suspicious packs, they will be listed here so you know what to watch for.</p></div>'; $('aCount').textContent = ''; $('aMore').hidden = true; return; }
+  if (reset) { AQ.offset = 0; if (!AQ.items.length) box.innerHTML = '<p class="sub">Loading alerts…</p>'; $('aCount').textContent = 'Searching…'; }
+  const my = ++AQ.seq; $('aMore').disabled = true;
+  try {
+    const r = await Api.rpc('search_alerts', { p_query: AQ.q, p_state: AQ.state, p_days: AQ.days, p_limit: 20, p_offset: AQ.offset });
+    if (my !== AQ.seq) return;
+    const got = (r && r.items) || [];
+    got.forEach(x => { if (x.product) rememberProduct(x.gtin, x.product, x.maker); });
+    AQ.items = reset ? got : AQ.items.concat(got); AQ.total = +(r && r.total) || 0; AQ.offset += got.length;
+    if (reset && !AQ.q) { store.set('alertsSeen', Date.now()); $('alertBadge').style.display = 'none'; }
+    renderAlertList();
+  } catch (e) {
+    if (my !== AQ.seq) return;
+    $('aCount').textContent = '';
+    if (!AQ.items.length || reset) box.innerHTML = '<div class="card"><h3>Alerts need internet</h3><p class="sub" style="margin-top:6px">Connect and open this tab again.</p></div>';
+  } finally { if (my === AQ.seq) $('aMore').disabled = false; }
+}
+function renderAlertList() {
+  const box = $('flagList'), where = AQ.state ? 'in ' + AQ.state : 'across Nigeria', when = DAYS_LABEL[AQ.days] || '';
+  $('aCount').textContent = AQ.total + (AQ.total === 1 ? ' alert ' : ' alerts ') + where + ' ' + when + (AQ.q ? ' matching "' + AQ.q + '"' : '') + '.';
+  if (!AQ.items.length) {
+    const wider = [];
+    if (AQ.state) wider.push('<button class="btn soft" type="button" data-wide="state">Search all of Nigeria</button>');
+    if (AQ.days) wider.push('<button class="btn soft" type="button" data-wide="days">Search all time</button>');
+    box.innerHTML = '<div class="card empty-a"><h3>' + (AQ.q ? 'No alerts match your search' : 'No alerts here') + '</h3><p class="sub" style="margin-top:6px">' + (AQ.q ? 'Check the spelling, or try the product number or batch printed on the pack.' : 'Nobody has flagged a pack ' + esc(where) + ' ' + esc(when) + '. Keep checking before you buy.') + '</p>' + (wider.length ? '<div class="actions">' + wider.join('') + '</div>' : '') + '</div>';
+    box.querySelectorAll('[data-wide]').forEach(b => b.addEventListener('click', () => {
+      if (b.dataset.wide === 'state') { AQ.state = ''; $('aState').value = ''; } else { AQ.days = 0; $('aDays').value = '0'; }
+      loadAlerts(true);
+    }));
+    $('aMore').hidden = true; return;
+  }
+  const mine = myBatches();
+  box.innerHTML = AQ.items.map((x, i) => {
+    const n = (+x.reports || 0) + (+x.flagged_scans || 0), hit = mine.has(x.gtin + '|' + (x.lot || ''));
+    return '<button class="item" type="button" data-a="' + i + '"><span class="dot t-bad">' + ICON.bad.replace('class="draw" ', '') + '</span><span><strong>' + esc(x.product || 'Product name not added yet') + '</strong><small>Batch ' + esc(x.lot || 'not known') + ' · ' + esc((x.places || []).slice(0, 2).join(' · ') || 'Nigeria') + '</small><small>' + esc(ago(Date.parse(x.last_seen))) + (hit ? ' · <b class="mine">You checked this batch</b>' : '') + '</small></span><span class="tag t-bad">' + n + (n > 1 ? ' warnings' : ' warning') + '</span></button>';
+  }).join('');
+  box.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => openAlert(AQ.items[+b.dataset.a])));
+  $('aMore').hidden = AQ.items.length >= AQ.total;
+  $('aMore').textContent = 'Show more (' + (AQ.total - AQ.items.length) + ' left)';
+}
+
 function openAlert(x) {
   if (!x) return;
   const issues = (x.issues || []).filter(o => ISSUE_LABEL[o.issue]);
@@ -516,7 +564,7 @@ function openAlert(x) {
 }
 async function checkBadge() {
   if (!Api.on) return;
-  try { const rows = ((await Api.rpc('recent_alerts', {})) || []).filter(x => x.gtin || x.product); const seen = store.get('alertsSeen', 0); if (rows && rows.some(x => Date.parse(x.last_seen) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
+  try { const r = await Api.rpc('search_alerts', { p_query: '', p_state: '', p_days: 30, p_limit: 5, p_offset: 0 }); const seen = store.get('alertsSeen', 0); if (r && (r.items || []).some(x => Date.parse(x.last_seen) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
 }
 
 /* ---------- updates / sign-up ---------- */

@@ -9,7 +9,7 @@ their state can sign up with a WhatsApp number or email.
 - **Scan** the GS1 DataMatrix (small square dot code) with the phone camera, a photo, or by typing the printed numbers.
 - **Checks**: invented product numbers (GS1 check digit), expired packs, box expiry that doesn't match the code (relabelled stock), plain barcodes that can't prove anything, and **copied codes** (the same serial scanned by other phones, especially in other towns).
 - **My checks**: history saved on the phone only.
-- **Alerts**: packs other users flagged or reported in the last 14 days, plus tips.
+- **Alerts**: packs other users flagged or reported, searchable by product, batch or number and filterable by state and time, with a details view and NAFDAC contacts.
 - **Updates**: optional sign-up for alerts, with a "Stop updates" button.
 - Works offline once opened (service worker) and can be added to the home screen like an app.
 
@@ -38,7 +38,7 @@ At this point the app already works: every check runs on the phone. Only the cop
 ## 2. Connect the free backend (Supabase)
 
 1. Create a free account at supabase.com and make a new project (choose a region close to Nigeria, e.g. Europe West).
-2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**. Then do the same with `supabase/002_alerts_and_contacts.sql`.
+2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**. Then do the same with `supabase/002_alerts_and_contacts.sql` and `supabase/003_search_alerts.sql`, in that order.
 3. Open **Project settings → API**. Copy the **Project URL** and the **anon public** key.
 4. Paste them into `config.js`, then upload the folder again (drag it onto Netlify Drop for the same site, or push to GitHub).
 
