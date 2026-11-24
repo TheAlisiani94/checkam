@@ -72,7 +72,7 @@ const fmtMonth = d => MONTHS[d.getMonth()] + ' ' + d.getFullYear();
 function ago(t) {
   const s = (Date.now() - t) / 1000;
   if (s < 90) return 'just now'; if (s < 3600) return Math.round(s / 60) + ' min ago';
-  if (s < 86400) return Math.round(s / 3600) + ' h ago'; if (s < 86400 * 7) return Math.round(s / 86400) + ' days ago';
+  if (s < 86400) return Math.round(s / 3600) + ' h ago'; if (s < 86400 * 7) { const d = Math.round(s / 86400); return d + (d === 1 ? ' day ago' : ' days ago'); }
   const d = new Date(t); return d.getDate() + ' ' + MONTHS[d.getMonth()];
 }
 
@@ -164,7 +164,9 @@ let sheetClose = null;
 function openSheet(html, onMount) {
   $('sheetBody').innerHTML = html; $('sheet').classList.add('on'); $('sheetBg').classList.add('on');
   if (onMount) onMount();
-  const first = $('sheet').querySelector('input,textarea,select,button'); if (first) setTimeout(() => first.focus(), 300);
+  $('sheet').scrollTop = 0;
+  const first = $('sheet').querySelector('input,textarea,select') || $('sheet').querySelector('h2');
+  if (first) { if (first.tagName === 'H2') first.setAttribute('tabindex', '-1'); setTimeout(() => first.focus({ preventScroll: true }), 300); }
 }
 function closeSheet() { $('sheet').classList.remove('on'); $('sheetBg').classList.remove('on'); if (sheetClose) { sheetClose(); sheetClose = null; } }
 $('sheetBg').addEventListener('click', closeSheet);
@@ -228,7 +230,7 @@ function renderResult(e, animate) {
       (nudge ? '<div class="nudge" style="--i:3"><button class="x" id="nudgeX" type="button" aria-label="Dismiss">×</button><h3>Get alerts about fakes near you</h3><p>Free. We\'ll message you when a fake medicine is found in your state.</p><button class="btn" id="nudgeGo" type="button">Sign up for alerts</button></div>' : '') +
       '<div class="actions" style="--i:4">' +
         '<button class="btn" id="againBtn" type="button">Scan another pack</button>' +
-        '<div class="row"><button class="btn soft" id="shareBtn" type="button">Share result</button>' + (e.opts.sample ? '' : '<button class="btn soft" id="reportBtn" type="button">Report it</button>') + '</div>' +
+        '<div class="row"><button class="btn soft" id="shareBtn" type="button">Share result</button>' + (e.opts.sample ? '' : '<button class="btn soft" id="reportBtn" type="button">Report this pack</button>') + '</div>' +
       '</div>' +
       '<p class="note" style="--i:5">CheckAm finds warning signs. A clean result is not proof that a pack is genuine.</p>' +
     '</div>';
@@ -247,24 +249,75 @@ async function share(r) {
   try { if (navigator.share) { await navigator.share({ title: 'CheckAm', text: txt }); return; } } catch (e) { return; }
   const a = document.createElement('a'); a.href = 'https://wa.me/?text=' + encodeURIComponent(txt); a.target = '_blank'; a.rel = 'noopener'; a.click();
 }
+/* ---------- reporting & NAFDAC ---------- */
+const ISSUES = [['print', 'Blurry or poor print'], ['spelling', 'Spelling mistakes'], ['seal', 'Seal broken or missing'], ['price', 'Price far too low'], ['date', 'Expiry date changed or covered'], ['different', 'Looks, smells or tastes different'], ['no_effect', "Didn't work"], ['ill', 'Made someone ill']];
+const ISSUE_LABEL = Object.fromEntries(ISSUES);
+const NAFDAC = { phone: '0800-162-3322', tel: '08001623322', email: 'sf.alert@nafdac.gov.ng', pv: 'pharmacovigilance@nafdac.gov.ng' };
+function knownProduct(g) { return (store.get('products', {})[g]) || { product: '', maker: '' }; }
+function rememberProduct(g, product, maker) {
+  if (!g || !product) return; const m = store.get('products', {}); m[g] = { product, maker: maker || '' };
+  const keys = Object.keys(m); if (keys.length > 200) delete m[keys[0]]; store.set('products', m);
+}
+function nafdacEmail(d) {
+  const lines = ['I want to report a suspected fake or substandard medicine. I found it using the CheckAm app.', '',
+    'Product: ' + (d.product || 'not known'), 'Maker: ' + (d.maker || 'not known'), 'Product number (GTIN): ' + (d.gtin || 'not known'),
+    'Batch: ' + (d.lot || 'not known'), 'Expiry: ' + (d.exp || 'not known'), d.sn ? 'Serial number: ' + d.sn : '',
+    d.places ? 'Reported by CheckAm users in: ' + d.places.join('; ') : 'Where bought: ' + ([d.seller, d.city, d.state].filter(Boolean).join(', ') || 'not given'),
+    'What looks wrong: ' + ((d.issues || []).map(i => ISSUE_LABEL[i]).filter(Boolean).join('; ') || 'not given'),
+    d.note ? 'Notes: ' + d.note : '', '', 'My name and phone number (optional): '];
+  return 'mailto:' + NAFDAC.email + '?subject=' + encodeURIComponent('Suspected fake medicine: ' + (d.product || d.gtin || 'unknown product')) + '&body=' + encodeURIComponent(lines.filter(x => x !== '').join('\n'));
+}
+function illBlock() {
+  return '<div class="ill"><strong>Did someone feel ill after taking it?</strong><span>See a doctor or pharmacist now, and bring the pack. Report the reaction in NAFDAC\'s Med Safety app or by email to ' + NAFDAC.pv + '.</span></div>';
+}
+function nafdacBlock(d) {
+  return '<div class="nafdac"><h3>Tell NAFDAC directly</h3><p class="sub">CheckAm does not send reports to NAFDAC. Only NAFDAC can investigate and remove fake medicine. The complaint line is free.</p>' +
+    '<div class="actions"><a class="btn" href="tel:' + NAFDAC.tel + '">Call NAFDAC: ' + NAFDAC.phone + '</a>' +
+    '<a class="btn soft" href="' + esc(nafdacEmail(d)) + '">Email NAFDAC with these details</a></div>' +
+    '<p class="note">NAFDAC\'s address for fake medicine reports: ' + NAFDAC.email + '</p></div>';
+}
+const DONE_SVG = '<svg class="draw" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="#0b6b45"/><path d="M24 43l12 12 24-26" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function openReport(e, r) {
-  openSheet('<h2 id="sheetH">Report this pack</h2><p class="sub" style="margin-top:6px">Your report helps warn others. Please also tell NAFDAC.</p>' +
-    '<label class="f" for="rWhat">What looks wrong?</label><textarea class="input" id="rWhat" rows="3" placeholder="e.g. blurry print, price far too low, broken seal"></textarea>' +
-    '<label class="f" for="rSeller">Where did you buy it? (shop or market)</label><input class="input" id="rSeller" placeholder="e.g. Bridge Head market">' +
+  const known = knownProduct(r.g);
+  openSheet('<h2 id="sheetH">Report this pack</h2><p class="sub" style="margin-top:6px">Your report warns other CheckAm users. It is not sent to NAFDAC; the next screen shows how to tell them.</p>' +
+    '<label class="f" for="rProd">Product name, as printed on the pack</label><input class="input" id="rProd" value="' + esc(known.product) + '" placeholder="e.g. Coartem 80/480 tablets">' +
+    '<label class="f" for="rMaker">Maker (optional)</label><input class="input" id="rMaker" value="' + esc(known.maker) + '" placeholder="Company name on the pack">' +
+    '<p class="f">What looks wrong? Tick all that apply.</p><div class="chips" id="rIssues">' + ISSUES.map(([k, l]) => '<button type="button" class="pick" aria-pressed="false" data-i="' + k + '">' + esc(l) + '</button>').join('') + '</div>' +
+    '<label class="f" for="rSeller">Shop or market where you bought it</label><input class="input" id="rSeller" placeholder="e.g. Bridge Head market">' +
+    '<label class="f" for="rWhat">Anything else?</label><textarea class="input" id="rWhat" rows="2"></textarea>' +
+    '<p class="note" style="margin-top:8px">The shop name and your notes stay private. Other users only see the product, batch, town and what looked wrong.</p>' +
+    '<p class="sub" id="rErr" role="alert" style="color:var(--hib-ink);min-height:22px;margin-top:6px"></p>' +
     '<div class="actions"><button class="btn" id="rSend" type="button">Send report</button></div>', () => {
+    $('rIssues').querySelectorAll('.pick').forEach(b => b.addEventListener('click', () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true'))));
     $('rSend').addEventListener('click', async () => {
+      const issues = [...$('rIssues').querySelectorAll('.pick[aria-pressed="true"]')].map(b => b.dataset.i);
+      const product = $('rProd').value.trim();
+      if (!product && !issues.length) { $('rErr').textContent = 'Add the product name or tick what looks wrong.'; return; }
       const btn = $('rSend'); btn.disabled = true; btn.textContent = 'Sending…';
-      const body = { p_gtin: r.g, p_serial: r.sn, p_lot: r.lot, p_note: $('rWhat').value.slice(0, 500), p_seller: $('rSeller').value.slice(0, 100), p_city: e.opts.city, p_state: e.opts.state, p_device: device };
-      try { await Api.rpc('add_report', body); closeSheet(); toast('Report sent. Thank you.'); }
-      catch (err) { const q = store.get('reportQueue', []); q.push(body); store.set('reportQueue', q.slice(-20)); closeSheet(); toast('Saved. It will send when you are online.'); }
+      const d = { gtin: r.g, sn: r.sn, lot: r.lot, exp: r.exp ? r.exp.toISOString().slice(0, 10) : null, product: product.slice(0, 80), maker: $('rMaker').value.trim().slice(0, 80), issues, note: $('rWhat').value.trim().slice(0, 500), seller: $('rSeller').value.trim().slice(0, 100), city: e.opts.city, state: e.opts.state };
+      rememberProduct(r.g, d.product, d.maker);
+      const body = { p_gtin: d.gtin, p_serial: d.sn, p_lot: d.lot, p_exp: d.exp, p_product: d.product, p_maker: d.maker, p_issues: issues, p_made_ill: issues.includes('ill'), p_note: d.note, p_seller: d.seller, p_city: d.city, p_state: d.state, p_device: device };
+      let sent = true;
+      try { await Api.rpc('add_report_v2', body); }
+      catch (err) { sent = false; const q = store.get('reportQueue', []); q.push({ fn: 'add_report_v2', body }); store.set('reportQueue', q.slice(-20)); }
+      showReported(d, sent);
     });
   });
 }
+function showReported(d, sent) {
+  $('sheetBody').innerHTML = '<div class="done">' + DONE_SVG + '<h2 id="sheetH">' + (sent ? 'Report saved' : 'Saved on this phone') + '</h2><p class="sub">' + (sent ? 'Other CheckAm users will now see a warning for this batch.' : 'It will send when you are back online.') + '</p></div>' +
+    (d.issues.includes('ill') ? illBlock() : '') + nafdacBlock(d) +
+    '<div class="actions"><button class="btn soft" id="rDone" type="button">Done</button></div>';
+  $('rDone').addEventListener('click', closeSheet);
+  $('sheet').scrollTop = 0;
+}
 async function flushReports() {
   if (!Api.on) return; const q = store.get('reportQueue', []); if (!q.length) return;
-  const left = []; for (const b of q) { try { await Api.rpc('add_report', b); } catch (e) { left.push(b); } }
+  const left = [];
+  for (const item of q) { const fn = item.fn || 'add_report', body = item.fn ? item.body : item; try { await Api.rpc(fn, body); } catch (e) { left.push(item); } }
   store.set('reportQueue', left);
 }
+
 
 /* ---------- typed entry ---------- */
 function openType() {
@@ -410,27 +463,75 @@ const TIPS = [
   ['Has a scratch panel? Text the PIN to the number shown to confirm with NAFDAC.', 'M8 4h16v24H8zM12 22h8']
 ];
 $('tips').innerHTML = TIPS.map(([t, d]) => '<div class="tip"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="' + d + '" fill="none" stroke="#0b6b45" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span>' + esc(t) + '</span></div>').join('');
+let alertsCache = [];
+function myBatches() { const s = new Map(); store.get('history', []).forEach(h => { const k = (h.fields['01'] || '') + '|' + (h.fields['10'] || ''); if (!s.has(k)) s.set(k, h); }); return s; }
 async function renderAlerts() {
   const box = $('flagList');
   if (!Api.on) { box.innerHTML = '<div class="card"><h3>Community alerts</h3><p class="sub" style="margin-top:6px">When people find suspicious packs, they will be listed here so you know what to watch for.</p></div>'; return; }
-  box.innerHTML = '<p class="sub">Loading alerts…</p>';
+  if (!alertsCache.length) box.innerHTML = '<p class="sub">Loading alerts…</p>';
   try {
-    const rows = await Api.rpc('recent_flags', {});
-    store.set('alertsSeen', Date.now()); $('alertBadge').style.display = 'none';
-    if (!rows || !rows.length) { box.innerHTML = '<div class="card"><h3>No alerts this week</h3><p class="sub" style="margin-top:6px">Nobody has flagged a pack recently. Keep checking before you buy.</p></div>'; return; }
-    box.innerHTML = '<p class="sub" style="margin:-10px 0 14px">Packs flagged by CheckAm users. Unconfirmed until NAFDAC checks them.</p>' + rows.map(x => '<div class="item"><span class="dot t-bad">' + ICON.bad.replace('class="draw" ', '') + '</span><span><strong>' + esc(x.reason || 'Suspicious pack') + '</strong><small>Product ' + esc(x.gtin || '—') + ' · batch ' + esc(x.lot || '—') + '</small><small>' + esc([x.city, x.state].filter(Boolean).join(', ') || 'Nigeria') + ' · ' + esc(ago(Date.parse(x.created_at))) + '</small></span></div>').join('');
-  } catch (e) { box.innerHTML = '<div class="card"><h3>Alerts need internet</h3><p class="sub" style="margin-top:6px">Connect and open this tab again.</p></div>'; }
+    const rows = (await Api.rpc('recent_alerts', {})) || [];
+    alertsCache = rows; store.set('alertsSeen', Date.now()); $('alertBadge').style.display = 'none';
+    rows.forEach(x => { if (x.product) rememberProduct(x.gtin, x.product, x.maker); });
+    if (!rows.length) { box.innerHTML = '<div class="card"><h3>No alerts this month</h3><p class="sub" style="margin-top:6px">Nobody has flagged a pack in the last 30 days. Keep checking before you buy.</p></div>'; return; }
+    const mine = myBatches();
+    box.innerHTML = '<p class="sub" style="margin:-10px 0 14px">Packs reported or flagged by CheckAm users in the last 30 days. Not yet confirmed by NAFDAC. Tap one for details.</p>' +
+      rows.map((x, i) => {
+        const n = (+x.reports || 0) + (+x.flagged_scans || 0), hit = mine.has(x.gtin + '|' + (x.lot || ''));
+        return '<button class="item" type="button" data-a="' + i + '"><span class="dot t-bad">' + ICON.bad.replace('class="draw" ', '') + '</span><span><strong>' + esc(x.product || 'Product name not added yet') + '</strong><small>Batch ' + esc(x.lot || 'not known') + ' · ' + esc((x.places || []).slice(0, 2).join(' · ') || 'Nigeria') + '</small><small>' + esc(ago(Date.parse(x.last_seen))) + (hit ? ' · <b class="mine">You checked this batch</b>' : '') + '</small></span><span class="tag t-bad">' + n + (n > 1 ? ' warnings' : ' warning') + '</span></button>';
+      }).join('');
+    box.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => openAlert(alertsCache[+b.dataset.a])));
+  } catch (e) { if (!alertsCache.length) box.innerHTML = '<div class="card"><h3>Alerts need internet</h3><p class="sub" style="margin-top:6px">Connect and open this tab again.</p></div>'; }
+}
+function openAlert(x) {
+  if (!x) return;
+  const issues = (x.issues || []).filter(o => ISSUE_LABEL[o.issue]);
+  const places = x.places || [];
+  const mine = myBatches().get(x.gtin + '|' + (x.lot || ''));
+  const exp = x.exp ? fmtDate(new Date(x.exp + 'T00:00:00')) : 'not known';
+  const why = [];
+  if (+x.reports) why.push('<li>' + x.reports + (x.reports > 1 ? ' people reported' : ' person reported') + ' this batch</li>');
+  if (+x.flagged_scans) why.push('<li>' + x.flagged_scans + (x.flagged_scans > 1 ? ' scans' : ' scan') + ' where CheckAm found a problem, such as an invented number, a changed date or a copied code</li>');
+  if (+x.made_ill) why.push('<li class="bad">' + x.made_ill + (x.made_ill > 1 ? ' reports say' : ' report says') + ' it made someone ill</li>');
+  openSheet('<span class="tag t-warn">Not yet confirmed by NAFDAC</span>' +
+    '<h2 id="sheetH" style="margin-top:12px">' + esc(x.product || 'Product name not added yet') + '</h2>' +
+    (x.maker ? '<p class="sub" style="margin-top:4px">Maker printed on the pack: ' + esc(x.maker) + '</p>' : (!x.product ? '<p class="sub" style="margin-top:4px">Compare the product number and batch below with your pack.</p>' : '')) +
+    (mine ? '<div class="mine-box"><strong>You checked a pack from this batch ' + esc(ago(mine.t)) + '.</strong> Don\'t use it until a pharmacist has looked at it.</div>' : '') +
+    '<dl class="facts"><dt>Product number</dt><dd>' + esc(x.gtin || 'not known') + '</dd><dt>Batch</dt><dd>' + esc(x.lot || 'not known') + '</dd><dt>Expiry on pack</dt><dd>' + esc(exp) + '</dd><dt>First reported</dt><dd>' + esc(fmtDate(new Date(x.first_seen))) + '</dd><dt>Latest</dt><dd>' + esc(ago(Date.parse(x.last_seen))) + '</dd></dl>' +
+    '<h3 class="mini">Where it was found</h3><div class="chips">' + (places.length ? places.map(p => '<span class="chip-i">' + esc(p) + '</span>').join('') : '<span class="sub">Town not given</span>') + '</div>' +
+    '<h3 class="mini">Why it is flagged</h3><ul class="why">' + why.join('') + '</ul>' +
+    (issues.length ? '<p class="sub" style="margin:10px 0 8px">What people noticed:</p><div class="chips">' + issues.map(o => '<span class="chip-i' + (o.issue === 'ill' ? ' bad' : '') + '">' + esc(ISSUE_LABEL[o.issue]) + (o.n > 1 ? ' (' + o.n + ')' : '') + '</span>').join('') + '</div>' : '') +
+    '<h3 class="mini">If you have this product</h3><ol class="todo"><li>Compare the product number and batch with your pack.</li><li>If they match, don\'t use it. Show it to a pharmacist.</li><li>If anyone feels unwell after taking it, see a doctor now.</li><li>Report it to NAFDAC.</li></ol>' +
+    (+x.made_ill ? illBlock() : '') +
+    nafdacBlock({ gtin: x.gtin, lot: x.lot, exp: x.exp, product: x.product, maker: x.maker, places, issues: issues.map(o => o.issue) }) +
+    '<div class="row" style="margin-top:14px"><button class="btn soft" id="aShare" type="button">Share warning</button><button class="btn soft" id="aScan" type="button">Check my pack</button></div>' +
+    '<p class="note">Based on reports from CheckAm users. Shop names are kept private so honest sellers are not wrongly accused.</p>', () => {
+    $('aScan').addEventListener('click', openScanner);
+    $('aShare').addEventListener('click', async () => {
+      const txt = 'CheckAm warning: ' + (x.product || 'a medicine') + (x.lot ? ', batch ' + x.lot : '') + ', product number ' + x.gtin + ', was reported as suspicious' + (places.length ? ' in ' + places.join('; ') : '') + '. Not yet confirmed by NAFDAC. Check your pack free: ' + location.origin + location.pathname;
+      try { if (navigator.share) { await navigator.share({ title: 'CheckAm warning', text: txt }); return; } } catch (e) { return; }
+      const a = document.createElement('a'); a.href = 'https://wa.me/?text=' + encodeURIComponent(txt); a.target = '_blank'; a.rel = 'noopener'; a.click();
+    });
+  });
 }
 async function checkBadge() {
   if (!Api.on) return;
-  try { const rows = await Api.rpc('recent_flags', {}); const seen = store.get('alertsSeen', 0); if (rows && rows.some(x => Date.parse(x.created_at) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
+  try { const rows = await Api.rpc('recent_alerts', {}); const seen = store.get('alertsSeen', 0); if (rows && rows.some(x => Date.parse(x.last_seen) > seen)) $('alertBadge').style.display = 'block'; } catch (e) {}
 }
 
 /* ---------- updates / sign-up ---------- */
+function normalizePhone(v) {
+  const s = String(v || '').replace(/[\s\-().]/g, '');
+  if (/^0\d{10}$/.test(s)) return '+234' + s.slice(1);
+  if (/^234\d{10}$/.test(s)) return '+' + s;
+  if (/^\+\d{10,15}$/.test(s)) return s;
+  return null;
+}
 function renderMe() {
   const p = store.get('profile', null), body = $('meBody');
   if (p) {
-    body.innerHTML = '<div class="card done"><svg class="draw" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="#0b6b45"/><path d="M24 43l12 12 24-26" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg><h3>You\'re signed up' + (p.name ? ', ' + esc(p.name) : '') + '</h3><p class="sub">We\'ll send alerts for ' + esc(p.state || 'Nigeria') + ' to ' + esc(p.contact) + '.</p>' + (p.pending ? '<p class="note">Saved on this phone. It will be sent when CheckAm is online.</p>' : '') + '<button class="btn soft" id="unsub" type="button" style="margin-top:8px">Stop updates</button></div>';
+    const to = [p.phone ? 'WhatsApp ' + p.phone : '', p.email || '', p.contact || ''].filter(Boolean).join(' and ');
+    body.innerHTML = '<div class="card done">' + DONE_SVG + '<h3>You\'re signed up' + (p.name ? ', ' + esc(p.name) : '') + '</h3><p class="sub">We\'ll send alerts for ' + esc(p.state || 'Nigeria') + ' to ' + esc(to) + '.</p>' + (p.pending ? '<p class="note">Saved on this phone. It will be sent when CheckAm is online.</p>' : '') + '<button class="btn soft" id="unsub" type="button" style="margin-top:8px">Stop updates</button></div>';
     $('unsub').addEventListener('click', async () => {
       if (p.token) { try { await Api.rpc('unsubscribe', { p_token: p.token }); } catch (e) { toast('Could not reach the server. Try again online.'); return; } }
       store.set('profile', null); renderMe(); toast('Updates stopped');
@@ -441,7 +542,9 @@ function renderMe() {
   body.innerHTML = '<p class="sub" style="margin:-10px 0 4px">CheckAm is free to use without an account. Sign up only if you want alerts when fake medicines are found in your state.</p>' +
     '<form class="card" id="subForm" novalidate>' +
       '<label class="f" for="uName">Your name (optional)</label><input class="input" id="uName" autocomplete="given-name">' +
-      '<label class="f" for="uContact">WhatsApp number or email</label><input class="input" id="uContact" autocomplete="tel" placeholder="e.g. 0803 123 4567">' +
+      '<label class="f" for="uPhone">WhatsApp number</label><input class="input" id="uPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g. 0803 123 4567">' +
+      '<label class="f" for="uEmail">Email</label><input class="input" id="uEmail" type="email" inputmode="email" autocomplete="email" placeholder="e.g. ada@example.com">' +
+      '<p class="note" style="margin-top:6px">Fill in at least one. We\'ll send alerts to each one you give.</p>' +
       '<label class="f" for="uState">Your state</label><select class="input" id="uState">' + stateOptions(pl.state) + '</select>' +
       '<label class="check"><input type="checkbox" id="uOk"><span>Send me alerts about fake medicines. I can stop them any time.</span></label>' +
       '<p class="sub" id="uErr" style="color:var(--hib-ink);min-height:24px;margin-top:10px" role="alert"></p>' +
@@ -449,22 +552,30 @@ function renderMe() {
     '</form>';
   $('subForm').addEventListener('submit', async ev => {
     ev.preventDefault();
-    const name = $('uName').value.trim().slice(0, 60), contact = $('uContact').value.trim(), state = $('uState').value;
-    const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact), isPhone = /^\+?[\d\s-]{10,16}$/.test(contact);
-    if (!isEmail && !isPhone) { $('uErr').textContent = 'Enter a phone number or an email address.'; return; }
+    const name = $('uName').value.trim().slice(0, 60), rawPhone = $('uPhone').value.trim(), email = $('uEmail').value.trim().toLowerCase(), state = $('uState').value;
+    const phone = rawPhone ? normalizePhone(rawPhone) : '';
+    if (!rawPhone && !email) { $('uErr').textContent = 'Enter a WhatsApp number or an email.'; return; }
+    if (rawPhone && !phone) { $('uErr').textContent = 'Check the WhatsApp number. It should have 11 digits, like 0803 123 4567.'; $('uPhone').focus(); return; }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('uErr').textContent = 'Check the email address.'; $('uEmail').focus(); return; }
     if (!state) { $('uErr').textContent = 'Choose your state so we send the right alerts.'; return; }
     if (!$('uOk').checked) { $('uErr').textContent = 'Tick the box to agree to receive alerts.'; return; }
     const btn = $('uGo'); btn.disabled = true; btn.textContent = 'Signing up…';
-    const profile = { name, contact, state };
-    try { const tok = await Api.rpc('subscribe', { p_name: name, p_contact: contact, p_state: state, p_device: device }); profile.token = tok; }
+    const profile = { name, phone: phone || '', email, state };
+    try { profile.token = await Api.rpc('subscribe_v2', { p_name: name, p_email: email, p_phone: phone || '', p_state: state, p_device: device }); }
     catch (e) { profile.pending = true; }
     store.set('profile', profile); renderMe(); toast('Signed up for alerts');
   });
 }
 async function flushSignup() {
   const p = store.get('profile', null); if (!p || !p.pending || !Api.on) return;
-  try { p.token = await Api.rpc('subscribe', { p_name: p.name, p_contact: p.contact, p_state: p.state, p_device: device }); delete p.pending; store.set('profile', p); } catch (e) {}
+  try {
+    p.token = (p.phone || p.email)
+      ? await Api.rpc('subscribe_v2', { p_name: p.name, p_email: p.email || '', p_phone: p.phone || '', p_state: p.state, p_device: device })
+      : await Api.rpc('subscribe', { p_name: p.name, p_contact: p.contact, p_state: p.state, p_device: device });
+    delete p.pending; store.set('profile', p);
+  } catch (e) {}
 }
+
 
 /* ---------- install ---------- */
 let installEvt = null;
@@ -485,6 +596,7 @@ function setupOnboarding() {
 }
 
 /* ---------- start ---------- */
+$('nafdacStatic').innerHTML = nafdacBlock({});
 renderPlace();
 setupOnboarding();
 if (navigator.onLine) { flushReports(); flushSignup(); checkBadge(); }

@@ -38,15 +38,15 @@ At this point the app already works: every check runs on the phone. Only the cop
 ## 2. Connect the free backend (Supabase)
 
 1. Create a free account at supabase.com and make a new project (choose a region close to Nigeria, e.g. Europe West).
-2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**.
+2. Open **SQL Editor → New query**, paste everything from `supabase/schema.sql`, and press **Run**. Then do the same with `supabase/002_alerts_and_contacts.sql`.
 3. Open **Project settings → API**. Copy the **Project URL** and the **anon public** key.
 4. Paste them into `config.js`, then upload the folder again (drag it onto Netlify Drop for the same site, or push to GitHub).
 
 The anon key is meant to be public. The database is locked so that the app can only call the functions in `schema.sql`. It cannot read the subscriber list or raw scans. You see everything in Supabase under **Table Editor**:
 
 - `scans`: every check (town, state, product, batch, result; no names)
-- `reports`: what people reported, with `reviewed` to tick off
-- `subscribers`: people who signed up, and whether they are still `active`
+- `reports`: what people reported (product, batch, tick-box issues, and the private shop name and notes), with `reviewed` to tick off
+- `subscribers`: people who signed up (`phone` for WhatsApp, `email`), and whether they are still `active`
 
 ## 3. Sending alerts to subscribers
 
