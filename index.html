@@ -128,6 +128,7 @@ label.f{display:block;font-weight:700;font-size:15px;margin:14px 0 6px}
 .card{background:var(--paper);border-radius:var(--r-lg);padding:20px;margin-top:16px}
 .done{display:grid;justify-items:center;text-align:center;gap:10px;padding:10px 0}
 .done svg{width:84px;height:84px}
+.privacy summary{cursor:pointer;min-height:44px;display:flex;align-items:center;list-style:none}.privacy summary::-webkit-details-marker{display:none}.privacy summary::after{content:"+";margin-left:auto;font:800 24px/1 var(--display);color:var(--ok-ink)}.privacy[open] summary::after{content:"\2013"}.privacy ul{margin:10px 0 0;padding-left:20px;display:grid;gap:8px;font-size:15px;color:var(--soft)}
 
 /* tab bar */
 nav.tabs{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);padding:8px 8px calc(8px + var(--safe-b));background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);z-index:5}
@@ -275,6 +276,17 @@ nav.tabs button[aria-current=page]::before{content:"";position:absolute;top:-8px
       <button class="btn" id="installBtn" type="button">Add to home screen</button>
     </div>
     <p class="note">CheckAm looks for warning signs. It can't prove a pack is genuine, so when in doubt, ask a pharmacist and report to NAFDAC.</p>
+    <details class="card privacy">
+      <summary><h3 style="display:inline">How CheckAm uses your data</h3></summary>
+      <ul>
+        <li>You can use CheckAm without signing up. Your list of checks stays on your phone.</li>
+        <li>When you scan a pack, we save the pack's product number, batch, expiry, serial number, the town you set, the result, and a random number for your phone. We don't save your name, phone number or location from GPS.</li>
+        <li>This lets CheckAm warn people when the same code shows up in different places, and show alerts about suspicious packs.</li>
+        <li>If you sign up for alerts, we keep your name (if given), your WhatsApp number or email, and your state, only to send you alerts. We never sell or share them.</li>
+        <li>Tap "Stop updates" at any time and we stop sending alerts.</li>
+        <li>Data is stored with Supabase, a database service, on servers in the United States.</li>
+      </ul>
+    </details>
   </section>
 </main>
 

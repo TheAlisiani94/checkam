@@ -1,5 +1,5 @@
 // CheckAm service worker: keeps the app opening fast and working on weak network.
-const CACHE = 'checkam-v1';
+const CACHE = 'checkam-v2';
 const SHELL = ['./', 'index.html', 'app.js', 'config.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
   'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js'];
 
@@ -15,6 +15,11 @@ self.addEventListener('fetch', e => {
   // Network first for the page itself (so updates arrive), cache first for everything else.
   if (req.mode === 'navigate') {
     e.respondWith(fetch(req).then(r => { const copy = r.clone(); caches.open(CACHE).then(c => c.put('index.html', copy)); return r; }).catch(() => caches.match('index.html')));
+    return;
+  }
+  // The app's own files: network first so updates arrive, cache when offline.
+  if (req.url.startsWith(self.location.origin)) {
+    e.respondWith(fetch(req).then(r => { if (r.ok) { const copy = r.clone(); caches.open(CACHE).then(c => c.put(req, copy)); } return r; }).catch(() => caches.match(req)));
     return;
   }
   e.respondWith(caches.match(req).then(hit => hit || fetch(req).then(r => {

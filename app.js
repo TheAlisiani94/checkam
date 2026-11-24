@@ -23,7 +23,7 @@ const Api = {
     try {
       const r = await fetch(CFG.SUPABASE_URL.replace(/\/$/, '') + '/rest/v1/rpc/' + name, {
         method: 'POST', signal: ctl.signal,
-        headers: { 'Content-Type': 'application/json', apikey: CFG.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CFG.SUPABASE_ANON_KEY },
+        headers: Object.assign({ 'Content-Type': 'application/json', apikey: CFG.SUPABASE_ANON_KEY }, /^eyJ/.test(CFG.SUPABASE_ANON_KEY) ? { Authorization: 'Bearer ' + CFG.SUPABASE_ANON_KEY } : {}),
         body: JSON.stringify(body || {})
       });
       if (!r.ok) throw new Error('http ' + r.status);
