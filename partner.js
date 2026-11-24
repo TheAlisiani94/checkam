@@ -50,8 +50,9 @@ async function loadMine() {
 function renderWelcome() {
   view.innerHTML =
     '<section class="hero"><div class="stack">' +
-      '<h1>Prove your medicines are genuine. Free.</h1>' +
+      '<h1>Prove your products are genuine. Free.</h1>' +
       '<p class="sub" style="font-size:18px">When a buyer scans one of your packs with CheckAm, they see <b>Genuine, confirmed by the manufacturer</b>. When someone reports a suspicious pack of yours, you get the details privately, with the shop and town, so you can act.</p>' +
+      '<p class="info">We are starting with medicines and other NAFDAC-registered health products. Food, drinks, cosmetics and other consumer goods come next.</p>' +
       '<ul class="benefits">' +
         ['Free for verified manufacturers and importers', 'Uses the GS1 codes you already print for NAFDAC traceability. No new labels.', 'Private reports about suspected fakes of your products', 'Your company is checked against NAFDAC, PCN, CAC and GS1 records, so nobody can pretend to be you', 'Upload batches and serial numbers so each genuine pack can be confirmed'].map(t => '<li>' + SVG_OK + '<span>' + esc(t) + '</span></li>').join('') +
       '</ul>' +

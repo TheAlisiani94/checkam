@@ -1,7 +1,7 @@
 {
-  "name": "CheckAm — medicine pack checker",
+  "name": "CheckAm — check if it's genuine",
   "short_name": "CheckAm",
-  "description": "Check if your medicine is genuine. Free, no sign-up needed.",
+  "description": "Check if a product is genuine, starting with medicines. Free, no sign-up needed.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

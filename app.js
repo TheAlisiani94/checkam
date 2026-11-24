@@ -1,4 +1,4 @@
-/* CheckAm — medicine pack checker. Plain JavaScript, no build step. */
+/* CheckAm — product pack checker (starting with medicines). Plain JavaScript, no build step. */
 (() => {
 'use strict';
 const $ = id => document.getElementById(id);
@@ -126,8 +126,8 @@ function evaluate(e) {
   const f = e.fields, items = []; let level = 'ok';
   const add = (l, t) => { items.push([l, t]); if (l === 'bad' || (l === 'warn' && level === 'ok')) level = l; };
   const g = (f['01'] || '').replace(/\D/g, ''), sn = f['21'] || '', exp = parseYMD(f['17']);
-  if (f.unknown && !g) add('warn', "This code isn't a medicine pack code. Look for the small square dot code instead.");
-  else if (!g) add('bad', 'No product number in this code. A medicine pack code should always have one.');
+  if (f.unknown && !g) add('warn', "This isn't a product pack code. Look for the small square dot code instead.");
+  else if (!g) add('bad', 'No product number in this code. A pack code should always have one.');
   else if (!checkDigitOk(g)) add('bad', 'The product number fails its built-in check. Real numbers always pass, so this one was probably made up or misprinted.');
   else { add('ok', 'The product number is a real-format GS1 number.'); const c = gsCountry(g); if (c) add('info', 'The number was issued through GS1 in ' + c + '. That shows where the brand registered it, not always where it was made.'); }
   if (f.plain) add('warn', 'This is an ordinary barcode, the same on every pack of this product, so it cannot show whether this one is genuine. Look for the small square dot code.');
@@ -216,7 +216,7 @@ function place() { return store.get('place', { city: '', state: '' }); }
 function renderPlace() { const p = place(); $('placeTxt').textContent = p.city || 'Set your town'; }
 $('placeChip').addEventListener('click', () => {
   const p = place();
-  openSheet('<h2 id="sheetH">Where do you buy medicine?</h2><p class="sub" style="margin-top:6px">This helps spot copied codes moving between towns. It stays on this phone and is shared only with your scans.</p>' +
+  openSheet('<h2 id="sheetH">Where do you usually shop?</h2><p class="sub" style="margin-top:6px">This helps spot copied codes moving between towns. It stays on this phone and is shared only with your scans.</p>' +
     '<label class="f" for="pCity">Town or city</label><input class="input" id="pCity" autocomplete="address-level2" value="' + esc(p.city) + '" placeholder="e.g. Onitsha">' +
     '<label class="f" for="pState">State</label><select class="input" id="pState">' + stateOptions(p.state) + '</select>' +
     '<div class="actions"><button class="btn" id="pSave" type="button">Save</button></div>', () => {
@@ -260,7 +260,7 @@ function renderResult(e, animate) {
   $('s-result').innerHTML =
     '<div class="top" style="margin-bottom:10px"><button class="chip" id="backBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Back</button>' + (e.opts.sample ? '<span class="tag t-warn">Sample, made-up data</span>' : '<span class="sub" style="font-size:14px">' + esc(ago(e.t)) + '</span>') + '</div>' +
     '<div class="carton ' + r.level + (animate ? ' enter thunk' : '') + '">' +
-      '<div class="flap">' + esc(e.verify && e.verify.product ? [e.verify.product, e.verify.strength].filter(Boolean).join(' ') : (e.opts.sample ? e.opts.name : 'Medicine pack')) + '</div>' +
+      '<div class="flap">' + esc(e.verify && e.verify.product ? [e.verify.product, e.verify.strength].filter(Boolean).join(' ') : (e.opts.sample ? e.opts.name : 'Product pack')) + '</div>' +
       '<dl><dt>Product no.</dt><dd>' + esc(r.g || '—') + '</dd><dt>Batch</dt><dd>' + esc(r.lot || '—') + '</dd><dt>Expiry</dt><dd>' + esc(fmtDate(r.exp)) + '</dd><dt>Serial</dt><dd>' + esc(r.sn || '—') + '</dd></dl>' +
       '<div class="stamp ' + r.level + '" aria-hidden="true"><div>' + esc(L.stamp) + '<small>' + esc(L.small) + '</small></div></div>' +
     '</div>' +
@@ -268,7 +268,7 @@ function renderResult(e, animate) {
       '<div class="verdict ' + r.level + '" style="--i:0"><h2>' + esc(L.title) + '</h2><p class="sub" style="margin-top:6px">' + esc(L.line) + '</p></div>' +
       (ask ? '<div class="ask" style="--i:1"><strong>Look at the expiry date printed on the box. Does it say ' + esc(fmtMonth(r.exp)) + '?</strong><div class="row"><button type="button" data-p="yes">Yes</button><button type="button" data-p="no">No</button><button type="button" data-p="none">No date</button></div></div>' : '') +
       '<ul class="checks" style="--i:2">' + r.items.map(([l, t], i) => '<li style="--i:' + (i + 2) + '">' + ICON[l] + '<span>' + esc(t) + '</span></li>').join('') + '</ul>' +
-      (nudge ? '<div class="nudge" style="--i:3"><button class="x" id="nudgeX" type="button" aria-label="Dismiss">×</button><h3>Get alerts about fakes near you</h3><p>Free. We\'ll message you when a fake medicine is found in your state.</p><button class="btn" id="nudgeGo" type="button">Sign up for alerts</button></div>' : '') +
+      (nudge ? '<div class="nudge" style="--i:3"><button class="x" id="nudgeX" type="button" aria-label="Dismiss">×</button><h3>Get alerts about fakes near you</h3><p>Free. We\'ll message you when a fake product is found in your state.</p><button class="btn" id="nudgeGo" type="button">Sign up for alerts</button></div>' : '') +
       '<div class="actions" style="--i:4">' +
         '<button class="btn" id="againBtn" type="button">Scan another pack</button>' +
         '<div class="row"><button class="btn soft" id="shareBtn" type="button">Share result</button>' + (e.opts.sample && !e.opts.tour ? '' : '<button class="btn soft" id="reportBtn" type="button">Report this pack</button>') + '</div>' +
@@ -286,7 +286,7 @@ function renderResult(e, animate) {
   }
 }
 async function share(r) {
-  const txt = 'I checked a medicine pack with CheckAm: ' + LEVEL[r.level].title + '. Check yours free: ' + location.origin + location.pathname;
+  const txt = 'I checked a pack with CheckAm: ' + LEVEL[r.level].title + '. Check yours free: ' + location.origin + location.pathname;
   try { if (navigator.share) { await navigator.share({ title: 'CheckAm', text: txt }); return; } } catch (e) { return; }
   const a = document.createElement('a'); a.href = 'https://wa.me/?text=' + encodeURIComponent(txt); a.target = '_blank'; a.rel = 'noopener'; a.click();
 }
@@ -300,22 +300,22 @@ function rememberProduct(g, product, maker) {
   const keys = Object.keys(m); if (keys.length > 200) delete m[keys[0]]; store.set('products', m);
 }
 function nafdacEmail(d) {
-  const lines = ['I want to report a suspected fake or substandard medicine. I found it using the CheckAm app.', '',
+  const lines = ['I want to report a suspected fake or substandard product. I found it using the CheckAm app.', '',
     'Product: ' + (d.product || 'not known'), 'Maker: ' + (d.maker || 'not known'), 'Product number (GTIN): ' + (d.gtin || 'not known'),
     'Batch: ' + (d.lot || 'not known'), 'Expiry: ' + (d.exp || 'not known'), d.sn ? 'Serial number: ' + d.sn : '',
     d.places ? 'Reported by CheckAm users in: ' + d.places.join('; ') : 'Where bought: ' + ([d.seller, d.city, d.state].filter(Boolean).join(', ') || 'not given'),
     'What looks wrong: ' + ((d.issues || []).map(i => ISSUE_LABEL[i]).filter(Boolean).join('; ') || 'not given'),
     d.note ? 'Notes: ' + d.note : '', '', 'My name and phone number (optional): '];
-  return 'mailto:' + NAFDAC.email + '?subject=' + encodeURIComponent('Suspected fake medicine: ' + (d.product || d.gtin || 'unknown product')) + '&body=' + encodeURIComponent(lines.filter(x => x !== '').join('\n'));
+  return 'mailto:' + NAFDAC.email + '?subject=' + encodeURIComponent('Suspected fake product: ' + (d.product || d.gtin || 'unknown product')) + '&body=' + encodeURIComponent(lines.filter(x => x !== '').join('\n'));
 }
 function illBlock() {
   return '<div class="ill"><strong>Did someone feel ill after taking it?</strong><span>See a doctor or pharmacist now, and bring the pack. Report the reaction in NAFDAC\'s Med Safety app or by email to ' + NAFDAC.pv + '.</span></div>';
 }
 function nafdacBlock(d) {
-  return '<div class="nafdac"><h3>Tell NAFDAC directly</h3><p class="sub">CheckAm does not send reports to NAFDAC. Only NAFDAC can investigate and remove fake medicine. The complaint line is free.</p>' +
+  return '<div class="nafdac"><h3>Tell NAFDAC directly</h3><p class="sub">CheckAm does not send reports to NAFDAC. Only NAFDAC can investigate and remove fake products. The complaint line is free.</p>' +
     '<div class="actions"><a class="btn" href="tel:' + NAFDAC.tel + '">Call NAFDAC: ' + NAFDAC.phone + '</a>' +
     '<a class="btn soft" href="' + esc(nafdacEmail(d)) + '">Email NAFDAC with these details</a></div>' +
-    '<p class="note">NAFDAC\'s address for fake medicine reports: ' + NAFDAC.email + '</p></div>';
+    '<p class="note">NAFDAC\'s address for reports of fake products: ' + NAFDAC.email + '</p></div>';
 }
 const DONE_SVG = '<svg class="draw" viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="40" fill="#0b6b45"/><path d="M24 43l12 12 24-26" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function openReport(e, r) {
@@ -497,7 +497,7 @@ $('clearHist').addEventListener('click', () => {
 
 /* ---------- alerts ---------- */
 const TIPS = [
-  ['Buy from a licensed pharmacy or patent medicine store, and keep the receipt.', 'M6 10h20v16H6zM10 10V6h12v4'],
+  ['Buy from licensed shops and pharmacies, and keep the receipt.', 'M6 10h20v16H6zM10 10V6h12v4'],
   ['Compare with a pack you know is genuine: print, colours, spelling, seal.', 'M4 16h10M18 16h10M9 8v16M23 8v16'],
   ['Be wary when the price is far below what you normally pay.', 'M16 4v24M22 9h-8a4 4 0 0 0 0 8h4a4 4 0 0 1 0 8h-9'],
   ['Look for a sticker over the expiry date. Peel back gently and check underneath.', 'M6 6h20v20H6zM18 26l8-8'],
@@ -587,7 +587,7 @@ function openAlert(x) {
     '<p class="note">Based on reports from CheckAm users. Shop names are kept private so honest sellers are not wrongly accused.</p>', () => {
     $('aScan').addEventListener('click', openScanner);
     $('aShare').addEventListener('click', async () => {
-      const txt = 'CheckAm warning: ' + (x.product || 'a medicine') + (x.lot ? ', batch ' + x.lot : '') + ', product number ' + x.gtin + ', was reported as suspicious' + (places.length ? ' in ' + places.join('; ') : '') + '. Not yet confirmed by NAFDAC. Check your pack free: ' + location.origin + location.pathname;
+      const txt = 'CheckAm warning: ' + (x.product || 'a product') + (x.lot ? ', batch ' + x.lot : '') + ', product number ' + x.gtin + ', was reported as suspicious' + (places.length ? ' in ' + places.join('; ') : '') + '. Not yet confirmed by NAFDAC. Check your pack free: ' + location.origin + location.pathname;
       try { if (navigator.share) { await navigator.share({ title: 'CheckAm warning', text: txt }); return; } } catch (e) { return; }
       const a = document.createElement('a'); a.href = 'https://wa.me/?text=' + encodeURIComponent(txt); a.target = '_blank'; a.rel = 'noopener'; a.click();
     });
@@ -618,14 +618,14 @@ function renderMe() {
     return;
   }
   const pl = place();
-  body.innerHTML = '<p class="sub" style="margin:-10px 0 4px">CheckAm is free to use without an account. Sign up only if you want alerts when fake medicines are found in your state.</p>' +
+  body.innerHTML = '<p class="sub" style="margin:-10px 0 4px">CheckAm is free to use without an account. Sign up only if you want alerts when fake products are found in your state.</p>' +
     '<form class="card" id="subForm" novalidate>' +
       '<label class="f" for="uName">Your name (optional)</label><input class="input" id="uName" autocomplete="given-name">' +
       '<label class="f" for="uPhone">WhatsApp number</label><input class="input" id="uPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="e.g. 0803 123 4567">' +
       '<label class="f" for="uEmail">Email</label><input class="input" id="uEmail" type="email" inputmode="email" autocomplete="email" placeholder="e.g. ada@example.com">' +
       '<p class="note" style="margin-top:6px">Fill in at least one. We\'ll send alerts to each one you give.</p>' +
       '<label class="f" for="uState">Your state</label><select class="input" id="uState">' + stateOptions(pl.state) + '</select>' +
-      '<label class="check"><input type="checkbox" id="uOk"><span>Send me alerts about fake medicines. I can stop them any time.</span></label>' +
+      '<label class="check"><input type="checkbox" id="uOk"><span>Send me alerts about fake products. I can stop them any time.</span></label>' +
       '<p class="sub" id="uErr" style="color:var(--hib-ink);min-height:24px;margin-top:10px" role="alert"></p>' +
       '<button class="btn" id="uGo" type="submit">Sign up for alerts</button>' +
     '</form>';
@@ -664,7 +664,7 @@ $('installBtn').addEventListener('click', async () => { if (!installEvt) return;
 /* ---------- guided tour ---------- */
 const sleep = ms => new Promise(r => setTimeout(r, reduceMotion ? Math.min(ms, 60) : ms));
 const TOUR = [
-  { tab: 'home', el: ['#scanBtn'], title: 'Scan a pack', text: 'Tap here, then point your camera at the small square dot code on the medicine box.', tap: true },
+  { tab: 'home', el: ['#scanBtn'], title: 'Scan a pack', text: 'Tap here, then point your camera at the small square dot code on the pack.', tap: true },
   { tab: 'home', el: ['#photoBtn', '#typeBtn'], title: 'No camera?', text: 'Use a photo of the code, or type the numbers printed next to it.' },
   { tab: 'home', el: ['#placeChip'], title: 'Set your town once', text: 'It helps CheckAm notice when the same code turns up in different towns.', tap: true },
   { example: true, el: ['#s-result .carton'], title: 'Your result', text: 'The stamp gives the verdict: No red flags, Check well, or Don\'t use. This example has a changed expiry date.' },
@@ -672,7 +672,7 @@ const TOUR = [
   { el: ['#reportBtn'], title: 'Report a bad pack', text: 'Warn other users, then call or email NAFDAC with one tap.', tap: true },
   { tab: 'alerts', el: ['#aForm', '#s-alerts .filters'], title: 'See what others found', text: 'Search by product, batch or number. Look near you, or anywhere in Nigeria.' },
   { tab: 'me', el: ['nav.tabs [data-tab="me"]'], title: 'Alerts by WhatsApp or email', text: 'Sign up here if you want to hear about fakes in your state. You never need an account to scan.', tap: true },
-  { tab: 'home', el: ['#scanBtn'], title: 'You\'re ready', text: 'Scan your first medicine pack now. You can watch this guide again from the home screen.', last: true }
+  { tab: 'home', el: ['#scanBtn'], title: 'You\'re ready', text: 'Scan your first pack now. You can watch this guide again from the home screen.', last: true }
 ];
 let tourStep = -1, tourBusy = false;
 function unionRect(sels) {
