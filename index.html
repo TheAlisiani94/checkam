@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b6b45">
+<meta name="description" content="Check if your medicine is genuine. Free, no sign-up needed.">
+<title>CheckAm</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gabarito:wght@600;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* CheckAm — design tokens
+   Subject: a Nigerian shopper checking a medicine pack, on an Android phone, often outdoors in a market.
+   Idea: the pharmacist's rubber stamp landing on a medicine carton. That stamp is the one memorable moment.
+   Colour: leaf green (pharmacy cross, Nigerian flag), mint paper, ink, saffron for caution, hibiscus for danger.
+   Type: Gabarito (chunky, friendly display) + Atkinson Hyperlegible (designed for low vision; reads in sunlight).
+   Layout: one-hand phone app — screens with a bottom tab bar; centred 480px column on larger screens. */
+:root{
+  color-scheme:light dark;
+  --leaf:#0b6b45;--leaf-2:#13915f;--mint:light-dark(#eaf6ef,#07140e);--paper:light-dark(#ffffff,#0f2219);
+  --ink:light-dark(#102019,#e8f3ec);--soft:light-dark(#4c5f55,#a5bdb0);--line:light-dark(#d3e6da,#21382c);
+  --saffron:#f4b400;--saffron-ink:light-dark(#8a5a00,#ffd166);--hib:#d7263d;--hib-ink:light-dark(#b01a30,#ff8a9a);
+  --ok-ink:light-dark(#0b6b45,#5fe0a6);
+  --r-lg:22px;--r-md:14px;--r-sm:10px;
+  --display:"Gabarito",system-ui,sans-serif;--body:"Atkinson Hyperlegible",system-ui,sans-serif;
+  --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
+}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{margin:0;background:light-dark(#cfe5d8,#020806);color:var(--ink);font:17px/1.5 var(--body);overflow-x:clip}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--saffron);outline-offset:2px;border-radius:6px}
+.app{position:relative;max-width:480px;min-height:100%;margin:0 auto;background:var(--mint);display:flex;flex-direction:column;overflow:hidden}
+@media(min-width:520px){.app{min-height:calc(100% - 40px);margin:20px auto;border-radius:28px;box-shadow:0 30px 80px -30px rgba(0,40,20,.45)}}
+main{flex:1;position:relative;overflow:hidden}
+.screen{position:absolute;inset:0;overflow-y:auto;padding:calc(20px + var(--safe-t)) 20px calc(100px + var(--safe-b));visibility:hidden;opacity:0;transform:translateX(24px)}
+.screen.on{visibility:visible;opacity:1;transform:none}
+.screen.left{transform:translateX(-24px)}
+h1,h2,h3{font-family:var(--display);line-height:1.08;margin:0;letter-spacing:-.01em}
+h1{font-size:clamp(34px,9vw,42px);font-weight:800}
+h2{font-size:26px;font-weight:800}
+h3{font-size:19px;font-weight:600}
+p{margin:0}
+.sub{color:var(--soft)}
+.brand{display:flex;align-items:center;gap:10px;font:800 22px/1 var(--display);color:var(--leaf)}
+:root[data-theme=dark] .brand,.brand{color:light-dark(#0b6b45,#5fe0a6)}
+.brand svg{width:34px;height:34px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:8px 14px;border-radius:999px;border:1.5px solid var(--line);background:var(--paper);font-size:15px}
+.chip svg{width:16px;height:16px;flex:none}
+
+/* Home hero */
+.hero{display:grid;justify-items:center;text-align:center;gap:14px;padding:8px 0 26px}
+.hero h1{max-width:12ch}
+.scanbtn{position:relative;width:min(62vw,232px);aspect-ratio:1;border-radius:50%;border:0;background:radial-gradient(circle at 35% 30%,var(--leaf-2),var(--leaf) 70%);color:#fff;display:grid;place-items:center;margin:14px 0 4px;box-shadow:0 18px 40px -14px rgba(11,107,69,.7),inset 0 -6px 0 rgba(0,0,0,.15)}
+.scanbtn::before,.scanbtn::after{content:"";position:absolute;inset:-14px;border-radius:50%;border:2px solid var(--leaf-2);opacity:0}
+.scanbtn .in{display:grid;justify-items:center;gap:8px}
+.scanbtn svg{width:46%;height:auto}
+.scanbtn span{font:800 20px/1 var(--display)}
+.scanbtn:active{transform:scale(.97)}
+.alt{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.ghost{min-height:46px;padding:10px 18px;border-radius:999px;border:1.5px solid var(--line);background:var(--paper);font-weight:700;display:inline-flex;align-items:center;gap:8px}
+.ghost svg{width:20px;height:20px}
+.section{margin-top:26px}
+.section>h3{margin-bottom:12px}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.steps li{display:grid;grid-template-columns:40px 1fr;gap:12px;align-items:center;background:var(--paper);border-radius:var(--r-md);padding:14px}
+.steps b{width:40px;height:40px;border-radius:50%;background:light-dark(#d6efe1,#163327);color:var(--ok-ink);display:grid;place-items:center;font:800 18px/1 var(--display)}
+.samples{display:flex;gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:6px}
+.sample{scroll-snap-align:start;flex:none;width:170px;text-align:left;border:0;border-radius:var(--r-md);padding:14px;background:var(--paper);display:grid;gap:6px}
+.sample i{display:block;width:30px;height:6px;border-radius:3px}
+.sample small{color:var(--soft);font-size:14px}
+
+/* buttons */
+.btn{min-height:52px;padding:14px 20px;border-radius:var(--r-md);border:0;background:var(--leaf);color:#fff;font:800 18px/1 var(--display);width:100%}
+.btn.soft{background:var(--paper);color:var(--ink);border:1.5px solid var(--line)}
+.btn:disabled{opacity:.55}
+.row{display:flex;gap:10px}.row>*{flex:1}
+
+/* Result */
+.carton{position:relative;margin:22px 4px 0;background:var(--paper);border-radius:var(--r-sm) var(--r-sm) var(--r-lg) var(--r-lg);box-shadow:0 22px 40px -24px rgba(0,40,20,.55)}
+.carton .flap{height:84px;background:var(--leaf);border-radius:var(--r-sm) var(--r-sm) 0 0;position:relative;display:flex;align-items:center;padding:0 132px 0 18px;color:#fff;font:600 15px/1 var(--display)}
+.carton .flap::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(180deg,rgba(0,0,0,.18),transparent)}
+.carton.warn .flap{background:#b97f00}.carton.bad .flap{background:var(--hib)}
+.carton dl{margin:0;padding:22px 18px 18px;display:grid;grid-template-columns:auto 1fr;gap:10px 16px;font-size:15px}
+.carton dt{color:var(--soft)}
+.carton dd{margin:0;font-weight:700;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.stamp{position:absolute;right:10px;top:-10px;width:112px;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;text-align:center;border:5px double currentColor;font:800 17px/1.05 var(--display);padding:12px;transform:rotate(-12deg);background:var(--paper);box-shadow:0 8px 18px -10px rgba(0,0,0,.5)}
+.stamp.ok{color:var(--ok-ink)}.stamp.warn{color:var(--saffron-ink)}.stamp.bad{color:var(--hib-ink)}
+.stamp small{display:block;font:700 11px/1.2 var(--body);margin-top:4px}
+.verdict{margin:24px 0 6px}
+.verdict.ok h2{color:var(--ok-ink)}.verdict.warn h2{color:var(--saffron-ink)}.verdict.bad h2{color:var(--hib-ink)}
+.checks{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:8px}
+.checks li{display:grid;grid-template-columns:28px 1fr;gap:12px;background:var(--paper);border-radius:var(--r-md);padding:14px;font-size:16px}
+.checks li svg{width:28px;height:28px}
+.ask{margin-top:14px;background:light-dark(#fff6d6,#2a2208);border-radius:var(--r-md);padding:16px;display:grid;gap:12px}
+.ask .row button{min-height:48px;border-radius:var(--r-sm);border:1.5px solid var(--line);background:var(--paper);font-weight:700}
+.nudge{margin-top:18px;border-radius:var(--r-lg);padding:18px;background:var(--leaf);color:#fff;display:grid;gap:10px;position:relative}
+.nudge .btn{background:#fff;color:var(--leaf)}
+.nudge .x{position:absolute;top:8px;right:8px;width:40px;height:40px;border:0;background:transparent;color:#fff;font-size:24px}
+.actions{display:grid;gap:10px;margin-top:20px}
+.note{font-size:14px;color:var(--soft);margin-top:14px}
+
+/* lists */
+.item{display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center;background:var(--paper);border-radius:var(--r-md);padding:12px 14px;margin-bottom:8px;border:0;width:100%;text-align:left}
+.item .dot{width:44px;height:44px;border-radius:12px;display:grid;place-items:center}
+.item .dot svg{width:24px;height:24px}
+.item small{display:block;color:var(--soft);font-size:14px}
+.tag{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap}
+.t-ok{background:light-dark(#d6efe1,#163327);color:var(--ok-ink)}.t-warn{background:light-dark(#fff0c2,#3a2f0a);color:var(--saffron-ink)}.t-bad{background:light-dark(#fde0e4,#3d1219);color:var(--hib-ink)}
+.empty{text-align:center;padding:40px 10px;display:grid;gap:12px;justify-items:center;color:var(--soft)}
+.empty svg{width:96px;height:96px}
+.tips{display:grid;gap:8px}
+.tip{background:var(--paper);border-radius:var(--r-md);padding:14px;display:grid;grid-template-columns:32px 1fr;gap:12px}
+.tip svg{width:32px;height:32px}
+
+/* forms */
+label.f{display:block;font-weight:700;font-size:15px;margin:14px 0 6px}
+.input{width:100%;min-height:50px;padding:12px 14px;border-radius:var(--r-sm);border:1.5px solid var(--line);background:var(--paper);font-size:17px}
+.check{display:grid;grid-template-columns:24px 1fr;gap:10px;margin-top:14px;font-size:15px;align-items:start}
+.check input{width:22px;height:22px;margin:2px 0 0;accent-color:var(--leaf)}
+.card{background:var(--paper);border-radius:var(--r-lg);padding:20px;margin-top:16px}
+.done{display:grid;justify-items:center;text-align:center;gap:10px;padding:10px 0}
+.done svg{width:84px;height:84px}
+
+/* tab bar */
+nav.tabs{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(4,1fr);padding:8px 8px calc(8px + var(--safe-b));background:color-mix(in srgb,var(--paper) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);z-index:5}
+nav.tabs button{border:0;background:none;display:grid;justify-items:center;gap:3px;min-height:54px;font-size:13px;font-weight:700;color:var(--soft);border-radius:12px;position:relative}
+nav.tabs svg{width:26px;height:26px}
+nav.tabs button[aria-current=page]{color:var(--ok-ink)}
+nav.tabs button[aria-current=page]::before{content:"";position:absolute;top:-8px;width:30px;height:4px;border-radius:0 0 4px 4px;background:var(--leaf)}
+.badge{position:absolute;top:4px;right:calc(50% - 22px);width:10px;height:10px;border-radius:50%;background:var(--hib);display:none}
+
+/* overlays */
+.scanner{position:fixed;inset:0;background:#000;z-index:20;display:none;color:#fff}
+.scanner.on{display:block}
+.scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scanner .shade{position:absolute;inset:0;display:grid;place-items:center}
+.vf{position:relative;width:min(70vw,280px);aspect-ratio:1;border-radius:24px;box-shadow:0 0 0 100vmax rgba(0,0,0,.55)}
+.vf i{position:absolute;width:46px;height:46px;border:5px solid #fff;border-radius:6px}
+.vf i:nth-child(1){top:-3px;left:-3px;border-right:0;border-bottom:0;border-top-left-radius:22px}
+.vf i:nth-child(2){top:-3px;right:-3px;border-left:0;border-bottom:0;border-top-right-radius:22px}
+.vf i:nth-child(3){bottom:-3px;left:-3px;border-right:0;border-top:0;border-bottom-left-radius:22px}
+.vf i:nth-child(4){bottom:-3px;right:-3px;border-left:0;border-top:0;border-bottom-right-radius:22px}
+.vf .line{position:absolute;left:10%;right:10%;height:3px;top:10%;background:var(--saffron);border-radius:3px;box-shadow:0 0 18px 4px rgba(244,180,0,.6)}
+.vf.got i{border-color:var(--leaf-2)}
+.scanner .hint{position:absolute;top:calc(28px + var(--safe-t));left:20px;right:20px;text-align:center;font:600 20px/1.25 var(--display)}
+.scanner .hint small{display:block;font:400 15px/1.4 var(--body);opacity:.85;margin-top:6px}
+.scanner .bar{position:absolute;left:0;right:0;bottom:calc(24px + var(--safe-b));display:flex;justify-content:center;gap:14px}
+.round{width:62px;height:62px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;display:grid;place-items:center;backdrop-filter:blur(6px)}
+.round svg{width:28px;height:28px}
+.round[aria-pressed=true]{background:var(--saffron);color:#000}
+.scanner .err{position:absolute;inset:auto 20px calc(110px + var(--safe-b));background:rgba(0,0,0,.7);border-radius:var(--r-md);padding:14px;text-align:center;display:none}
+
+.sheet-bg{position:fixed;inset:0;background:rgba(5,20,12,.5);z-index:30;opacity:0;visibility:hidden}
+.sheet{position:fixed;left:50%;bottom:0;width:min(100%,480px);transform:translate(-50%,105%);background:var(--mint);border-radius:26px 26px 0 0;padding:12px 20px calc(24px + var(--safe-b));z-index:31;max-height:92vh;overflow-y:auto;visibility:hidden}
+.sheet::before{content:"";display:block;width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 16px}
+.sheet.on{transform:translate(-50%,0);visibility:visible}.sheet-bg.on{opacity:1;visibility:visible}
+
+.onboard{position:fixed;inset:0;z-index:40;background:var(--leaf);color:#fff;display:none;flex-direction:column}
+.onboard.on{display:flex}
+.slides{flex:1;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+.slides::-webkit-scrollbar{display:none}
+.slide{flex:0 0 100%;scroll-snap-align:start;display:grid;align-content:center;justify-items:center;text-align:center;gap:18px;padding:40px 28px}
+.slide svg{width:min(60vw,230px);height:auto}
+.slide h2{font-size:32px;max-width:14ch}
+.slide p{max-width:30ch;font-size:18px;opacity:.92}
+.ob-foot{padding:16px 24px calc(24px + var(--safe-b));display:grid;gap:14px}
+.dots{display:flex;justify-content:center;gap:8px}
+.dots i{width:8px;height:8px;border-radius:4px;background:rgba(255,255,255,.4);transition:width .3s,background .3s}
+.dots i.on{width:26px;background:#fff}
+.onboard .btn{background:#fff;color:var(--leaf)}
+.onboard .skip{background:none;border:0;color:#fff;opacity:.85;min-height:44px;font-weight:700}
+
+.toast{position:fixed;width:max-content;left:50%;bottom:calc(96px + var(--safe-b));transform:translate(-50%,20px);background:var(--ink);color:var(--mint);padding:12px 18px;border-radius:999px;font-weight:700;z-index:50;opacity:0;pointer-events:none;max-width:90vw;text-align:center}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+
+/* Motion — only where it answers an action, plus one idle cue on the scan button */
+@media (prefers-reduced-motion:no-preference){
+  .screen{transition:opacity .28s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s}
+  .screen.on{transition:opacity .28s ease,transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s}
+  .scanbtn::before{animation:pulse 2.6s ease-out infinite}
+  .scanbtn::after{animation:pulse 2.6s ease-out 1.3s infinite}
+  .vf .line{animation:sweep 1.8s ease-in-out infinite alternate}
+  .vf.got{animation:pop .35s ease}
+  .sheet,.sheet-bg{transition:transform .38s cubic-bezier(.2,.9,.2,1),opacity .3s,visibility 0s linear .38s}
+  .sheet.on,.sheet-bg.on{transition:transform .38s cubic-bezier(.2,.9,.2,1),opacity .3s,visibility 0s}
+  .toast{transition:opacity .25s,transform .3s}
+  .carton.enter{animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+  .carton.enter .stamp{animation:stamp .55s cubic-bezier(.3,1.6,.5,1) .45s both}
+  .carton.enter.thunk{animation:rise .5s cubic-bezier(.2,.8,.2,1) both,thunk .3s ease .78s}
+  .reveal>*{animation:rise .45s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(.9s + var(--i,0)*.12s)}
+  .reveal .draw path,.done .draw path{stroke-dasharray:60;stroke-dashoffset:60;animation:draw .5s ease forwards;animation-delay:calc(1s + var(--i,0)*.12s)}
+  .done .draw path{animation-delay:.15s}
+}
+@keyframes pulse{0%{transform:scale(.92);opacity:.7}100%{transform:scale(1.25);opacity:0}}
+@keyframes sweep{to{top:88%}}
+@keyframes pop{50%{transform:scale(1.06)}}
+@keyframes rise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes stamp{0%{opacity:0;transform:rotate(-24deg) scale(2.4)}70%{opacity:1}100%{opacity:1;transform:rotate(-12deg) scale(1)}}
+@keyframes thunk{30%{transform:translateY(4px) scale(.99)}100%{transform:none}}
+@keyframes draw{to{stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+<main>
+  <!-- HOME -->
+  <section class="screen on" id="s-home" aria-labelledby="h-home">
+    <div class="top">
+      <div class="brand"><svg viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="11" fill="#0b6b45"/><path d="M11 21l6 6 12-14" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>CheckAm</div>
+      <button class="chip" id="placeChip" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s7-7.2 7-12.5A7 7 0 0 0 5 9.5C5 14.8 12 22 12 22z" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="9.5" r="2.5" fill="currentColor"/></svg><span id="placeTxt">Set your town</span></button>
+    </div>
+    <div class="hero">
+      <h1 id="h-home">Is this medicine real?</h1>
+      <p class="sub">Scan the small square code on the pack. Free, and no sign-up needed.</p>
+      <button class="scanbtn" id="scanBtn" type="button" aria-label="Scan a pack">
+        <span class="in"><svg viewBox="0 0 48 48" aria-hidden="true"><g fill="#fff"><rect x="4" y="4" width="4" height="40"/><rect x="4" y="40" width="40" height="4"/><rect x="12" y="4" width="4" height="4"/><rect x="20" y="4" width="4" height="4"/><rect x="28" y="4" width="4" height="4"/><rect x="36" y="4" width="4" height="4"/><rect x="40" y="8" width="4" height="4"/><rect x="40" y="16" width="4" height="4"/><rect x="40" y="24" width="4" height="4"/><rect x="40" y="32" width="4" height="4"/><rect x="14" y="14" width="6" height="6"/><rect x="26" y="14" width="6" height="6"/><rect x="20" y="22" width="6" height="6"/><rect x="14" y="30" width="6" height="6"/><rect x="30" y="28" width="6" height="6"/></g></svg><span>Scan pack</span></span>
+      </button>
+      <div class="alt">
+        <button class="ghost" id="photoBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="13" r="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 6l2-3h4l2 3" fill="none" stroke="currentColor" stroke-width="2"/></svg>Use a photo</button>
+        <button class="ghost" id="typeBtn" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 10h1M10 10h1M14 10h1M18 10h0M7 14h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Type the code</button>
+      </div>
+      <input type="file" id="photoIn" accept="image/*" capture="environment" class="sr" tabindex="-1" aria-hidden="true">
+    </div>
+    <div class="section">
+      <h3>How it works</h3>
+      <ol class="steps">
+        <li><b>1</b><span>Find the small square dot code on the box, usually near the expiry date.</span></li>
+        <li><b>2</b><span>Scan it. We read the product, batch, expiry and serial number.</span></li>
+        <li><b>3</b><span>We check for invented numbers, changed dates and copied codes.</span></li>
+      </ol>
+    </div>
+    <div class="section">
+      <h3>See it in action</h3>
+      <div class="samples" id="samples"></div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section class="screen" id="s-result" aria-live="polite"></section>
+
+  <!-- HISTORY -->
+  <section class="screen" id="s-history" aria-labelledby="h-hist">
+    <div class="top"><h2 id="h-hist">My checks</h2><button class="chip" id="clearHist" type="button">Clear</button></div>
+    <p class="sub" style="margin:-10px 0 16px">Saved on this phone only.</p>
+    <div id="histList"></div>
+  </section>
+
+  <!-- ALERTS -->
+  <section class="screen" id="s-alerts" aria-labelledby="h-alerts">
+    <div class="top"><h2 id="h-alerts">Alerts</h2></div>
+    <div id="flagList"></div>
+    <div class="section">
+      <h3>Spot a fake before you buy</h3>
+      <div class="tips" id="tips"></div>
+    </div>
+    <p class="note">Official alerts and recalls: <a href="https://nafdac.gov.ng" rel="noopener" style="color:var(--ok-ink)">nafdac.gov.ng</a> · Check registration: <a href="https://greenbook.nafdac.gov.ng" rel="noopener" style="color:var(--ok-ink)">NAFDAC Greenbook</a></p>
+  </section>
+
+  <!-- UPDATES / ME -->
+  <section class="screen" id="s-me" aria-labelledby="h-me">
+    <div class="top"><h2 id="h-me">Get updates</h2></div>
+    <div id="meBody"></div>
+    <div class="card" id="installCard" hidden>
+      <h3>Add CheckAm to your home screen</h3>
+      <p class="sub" style="margin:6px 0 14px">Opens like an app and works with weak network.</p>
+      <button class="btn" id="installBtn" type="button">Add to home screen</button>
+    </div>
+    <p class="note">CheckAm looks for warning signs. It can't prove a pack is genuine, so when in doubt, ask a pharmacist and report to NAFDAC.</p>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Main">
+  <button type="button" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5a1 1 0 0 1 1-1h2M17 4h2a1 1 0 0 1 1 1v2M20 17v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Scan</button>
+  <button type="button" data-tab="history"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>My checks</button>
+  <button type="button" data-tab="alerts"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M12 10v4M12 17v.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Alerts<i class="badge" id="alertBadge"></i></button>
+  <button type="button" data-tab="me"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 7 2 7H4s2-2 2-7M10 20a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Updates</button>
+</nav>
+</div>
+
+<!-- Scanner -->
+<div class="scanner" id="scanner" role="dialog" aria-modal="true" aria-label="Scanner">
+  <video id="video" playsinline muted></video>
+  <div class="shade"><div class="vf" id="vf"><i></i><i></i><i></i><i></i><div class="line"></div></div></div>
+  <p class="hint">Point at the small square code<small>Hold steady, about a hand's length away</small></p>
+  <div class="err" id="camErr"></div>
+  <div class="bar">
+    <button class="round" id="torchBtn" type="button" aria-label="Torch" aria-pressed="false" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2L5 14h6l-1 8 8-12h-6z" fill="currentColor"/></svg></button>
+    <button class="round" id="scanPhoto" type="button" aria-label="Use a photo instead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 16l5-5 4 4 3-3 6 6" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
+    <button class="round" id="scanType" type="button" aria-label="Type the code instead"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 14h10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <button class="round" id="scanClose" type="button" aria-label="Close scanner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg></button>
+  </div>
+</div>
+
+<!-- Sheets -->
+<div class="sheet-bg" id="sheetBg"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetH"><div id="sheetBody"></div></div>
+
+<!-- Onboarding -->
+<div class="onboard" id="onboard" role="dialog" aria-modal="true" aria-label="Welcome">
+  <div class="slides" id="slides">
+    <div class="slide">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="40" y="50" width="120" height="120" rx="10" fill="#fff"/><rect x="40" y="50" width="120" height="28" rx="10" fill="#13915f"/><rect x="40" y="66" width="120" height="12" fill="#13915f"/><g fill="#0b6b45"><rect x="60" y="100" width="6" height="50"/><rect x="60" y="144" width="50" height="6"/><rect x="72" y="100" width="6" height="6"/><rect x="84" y="100" width="6" height="6"/><rect x="96" y="100" width="6" height="6"/><rect x="104" y="108" width="6" height="6"/><rect x="104" y="124" width="6" height="6"/><rect x="78" y="118" width="8" height="8"/><rect x="90" y="130" width="8" height="8"/></g><rect x="122" y="104" width="24" height="5" rx="2" fill="#cfe5d8"/><rect x="122" y="116" width="18" height="5" rx="2" fill="#cfe5d8"/></svg>
+      <h2>Fake medicine harms people every day</h2>
+      <p>Many fakes look exactly like the real thing. CheckAm helps you spot the warning signs.</p>
+    </div>
+    <div class="slide">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><rect x="58" y="20" width="84" height="160" rx="16" fill="#073f29"/><rect x="64" y="34" width="72" height="128" rx="6" fill="#fff"/><g fill="none" stroke="#f4b400" stroke-width="5" stroke-linecap="round"><path d="M76 66v-12h12M124 54h12v12M136 130v12h-12M88 142H76v-12"/></g><rect x="80" y="96" width="40" height="4" rx="2" fill="#f4b400"/></svg>
+      <h2>Scan the square code</h2>
+      <p>Most medicine packs now carry one. Point your camera at it, and CheckAm reads it in a second.</p>
+    </div>
+    <div class="slide">
+      <svg viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="70" fill="none" stroke="#fff" stroke-width="8"/><circle cx="100" cy="100" r="56" fill="none" stroke="#fff" stroke-width="3"/><path d="M70 102l20 20 40-44" fill="none" stroke="#f4b400" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <h2>Free, no sign-up needed</h2>
+      <p>Use it as much as you like. Sign up later only if you want alerts about fakes near you.</p>
+    </div>
+  </div>
+  <div class="ob-foot">
+    <div class="dots" id="dots"><i class="on"></i><i></i><i></i></div>
+    <button class="btn" id="obNext" type="button">Next</button>
+    <button class="skip" id="obSkip" type="button">Skip</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js" defer></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
