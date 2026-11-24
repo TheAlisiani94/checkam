@@ -618,8 +618,8 @@ function openImporter(target, product) {
     const smp = $('impSample'); if (smp) smp.addEventListener('click', () => {
       const p1 = prods[0], p2 = prods[1] || prods[0];
       rows = [['Product', 'Product code', 'Batch No.', 'Mfg. Date', 'Exp. Date', 'Serial No.']]
-        .concat(Array.from({ length: 30 }, (_, i) => [p1.name, p1.gtin, 'DQ2611', '15/11/2026', '31/10/2029', 'DQ' + String(i + 1).padStart(6, '0')]))
-        .concat(Array.from({ length: 20 }, (_, i) => [p2.name, p2.gtin, 'NEW2611', '10/11/2026', '31/07/2028', 'NX' + String(i + 1).padStart(5, '0')]))
+        .concat(Array.from({ length: 30 }, (_, i) => [p1.name, p1.gtin, 'B2611-A', '15/11/2026', '31/10/2029', 'SA' + String(i + 1).padStart(6, '0')]))
+        .concat(Array.from({ length: 20 }, (_, i) => [p2.name, p2.gtin, 'B2611-B', '10/11/2026', '31/07/2028', 'NX' + String(i + 1).padStart(5, '0')]))
         .concat(Array.from({ length: 12 }, (_, i) => ['Demofen 400 mg', '06159999000042', 'DF2611', '01/11/2026', '30/04/2029', 'DF' + String(i + 1).padStart(5, '0')]));
       cfg = guessColumns(rows); stepReview();
     });
@@ -639,7 +639,7 @@ function openImporter(target, product) {
         return '<div class="batch"><div class="top"><span class="lot">' + esc(p.name + (p.strength ? ' ' + p.strength : '')) + '</span>' + reviewTag(p) + '</div>' +
           list.map(([g, i]) => '<div style="border-top:1px solid var(--line);padding-top:8px;display:grid;gap:6px"><div class="top"><span><b>Batch ' + esc(g.lot) + '</b> · ' + plural(g.serials.length, 'serial number') + '</span>' + (g.batch ? '<span class="tag t-info">Existing batch</span>' : '<span class="tag t-ok">New batch, created for you</span>') + '</div>' +
             (g.batch ? '<div class="facts">' + (g.batch.mfg_date ? '<span>Made <b>' + esc(fmtDate(g.batch.mfg_date)) + '</b></span>' : '') + '<span>Expires <b>' + esc(fmtDate(g.batch.exp_date)) + '</b></span></div>'
-              : '<div class="grid2"><div><label class="note" for="m' + i + '">Manufactured</label><input class="input" type="date" id="m' + i + '" data-mfg="' + i + '" value="' + esc(g.mfg || '') + '"></div><div><label class="note" for="e' + i + '">Expires</label><input class="input" type="date" id="e' + i + '" data-exp="' + i + '" value="' + esc(g.exp || '') + '"></div></div>') + '</div>').join('') + '</div>';
+              : '<div class="dates"><div><label class="note" for="m' + i + '">Manufactured</label><input class="input" type="date" id="m' + i + '" data-mfg="' + i + '" value="' + esc(g.mfg || '') + '"></div><div><label class="note" for="e' + i + '">Expires</label><input class="input" type="date" id="e' + i + '" data-exp="' + i + '" value="' + esc(g.exp || '') + '"></div></div>') + '</div>').join('') + '</div>';
       }).join('') + '</div>' : '<p class="info">Nothing to upload yet.' + (planned.unknown.length ? ' Add the new products below first.' : ' Check the columns below.') + '</p>') +
       (planned.unknown.length ? '<h3 style="margin-top:18px">New products in this file</h3><p class="note">These GTINs are not on your product list. Add them and their serial numbers are included.</p>' +
         planned.unknown.map(u => '<div class="newp"><span><code>' + esc(u.gtin) + '</code>' + (u.name ? ' ' + esc(u.name) : '') + ' <span class="note">· ' + plural(u.count, 'serial number') + '</span></span><button class="btn soft small" type="button" data-newp="' + esc(u.gtin) + '">Add this product</button></div>').join('') : '') +

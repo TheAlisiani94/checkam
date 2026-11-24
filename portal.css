@@ -149,3 +149,4 @@ dialog.modal.pop.wide{width:min(880px,calc(100vw - 20px))}
 .newp{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border:1.5px dashed var(--saffron);border-radius:12px;margin-top:8px}
 .newp code{font:600 14px ui-monospace,monospace}
 .info{background:var(--mint);border-radius:12px;padding:12px 14px;font-size:15px}
+.dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
