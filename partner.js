@@ -354,7 +354,7 @@ const HDR = [
   ['gtin', /gtin|ean|barcode|product ?(code|number|no)|^pc$|item ?code|ndc/i],
   ['lot', /batch|^lot|lot ?(no|num)/i],
   ['exp', /exp|expir|use ?by|best ?before/i],
-  ['serial', /serial|^s\/?n$|^sn$|unique|^code$|^id$/i]
+  ['serial', /serial|^s\/?n$|^sn$|unique/i]
 ];
 const gtinOk = g => { if (!/^\d{14}$/.test(g)) return false; const d = g.split('').map(Number), l = d.pop(); let s = 0; d.reverse().forEach((n, i) => { s += n * (i % 2 === 0 ? 3 : 1); }); return (10 - s % 10) % 10 === l; };
 function toISODate(v) {
@@ -404,6 +404,10 @@ function guessColumns(rows) {
   head.forEach((h, i) => { if (h instanceof Date) return; const t = String(h || ''); for (const [k, re] of HDR) if (re.test(t) && !map.includes(k)) { map[i] = k; hasHeader = true; break; } });
   if (!hasHeader && head.length && head.every(h => typeof h === 'string' && /[a-z]{3,}/i.test(h) && !/\d{4,}/.test(h))) hasHeader = true;
   const body = rows.slice(hasHeader ? 1 : 0, 400);
+  const colVals = i => body.map(r => r[i]).filter(v => v !== '' && v != null);
+  const looksGS1 = v => /^\(01\)\d{14}|^(\]d2)?01\d{14}.*21|\u001d/.test(String(v));
+  // Content beats headers for full GS1 codes (a column called "Code" often holds them).
+  for (let i = 0; i < width; i++) { const vals = colVals(i); if (vals.length && vals.filter(looksGS1).length / vals.length > .6) { map.forEach((x, j) => { if (x === 'gs1') map[j] = ''; }); map[i] = 'gs1'; break; } }
   if (!map.includes('gs1') || !map.includes('serial')) {
     for (let i = 0; i < width; i++) {
       if (map[i]) continue;
@@ -414,7 +418,7 @@ function guessColumns(rows) {
       if (!map.includes('gs1') && share(v => /^\(01\)\d{14}|^(\]d2)?01\d{14}.*21|\u001d/.test(String(v))) > .6) map[i] = 'gs1';
       else if (!map.includes('gtin') && share(v => gtinOk(String(v).replace(/\D/g, '').padStart(14, '0')) && /^\d{8,14}$/.test(String(v))) > .8) map[i] = 'gtin';
       else if (!map.includes('exp') && share(v => !!toISODate(v) && !/^\d{7,}$/.test(String(v))) > .8) map[i] = 'exp';
-      else if (!map.includes('lot') && uniq < .2 && vals.length > 3) map[i] = 'lot';
+      else if (!map.includes('lot') && vals.length >= 2 && uniq <= .5 && share(v => /^[A-Z0-9][A-Z0-9\-\/.]{1,19}$/i.test(String(v)) && !/^\d{8,14}$/.test(String(v))) > .9) map[i] = 'lot';
     }
     if (!map.includes('serial') && !map.includes('gs1')) {
       let best = -1, bestU = 0;
