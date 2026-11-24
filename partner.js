@@ -292,35 +292,7 @@ async function renderDemo() {
 }
 
 /* ---------- batches and serial numbers ---------- */
-let batches = [], upTarget = null;
-const SERIAL_OK = /^[!-~]{1,20}$/;
-function parseSerials(text, gtin, lot) {
-  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  let col = 0, start = 0;
-  if (lines.length) {
-    const head = lines[0].split(/[,;\t]/).map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
-    const i = head.findIndex(h => /^(serial|serial number|serial_number|sn)$/.test(h));
-    if (i >= 0) { col = i; start = 1; } else if (head.some(h => /[a-z]{4,}/.test(h) && !SERIAL_OK.test(h))) start = 1;
-  }
-  const good = new Set(); let bad = 0, wrong = 0, dup = 0;
-  for (let k = start; k < lines.length; k++) {
-    const line = lines[k]; let v;
-    if (/^\(01\)|^\]d2|\u001d/.test(line)) {
-      const f = parseGS1(line);
-      if (gtin && f['01'] && f['01'] !== gtin) { wrong++; continue; }
-      if (lot && f['10'] && f['10'].toUpperCase() !== lot.toUpperCase()) { wrong++; continue; }
-      v = f['21'] || '';
-    } else v = (line.split(/[,;\t]/)[col] || '').trim().replace(/^"|"$/g, '');
-    if (!SERIAL_OK.test(v)) { bad++; continue; }
-    if (good.has(v)) { dup++; continue; } good.add(v);
-  }
-  return { serials: [...good], bad, wrong, dup };
-}
-function downloadTemplate(lot) {
-  const rows = ['serial'].concat(Array.from({ length: 5 }, (_, i) => (lot || 'LOT') + '-' + String(i + 1).padStart(5, '0')));
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n') + '\n'], { type: 'text/csv' }));
-  a.download = 'checkam-serials-template.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
+let batches = [];
 async function renderBatches(demo, demoData) {
   const card = $('batchCard'); if (!card) return;
   const prods = (demo ? demoData.products : products).filter(p => p.gtin);
@@ -329,20 +301,23 @@ async function renderBatches(demo, demoData) {
   const tot = batches.reduce((a, b) => ({ s: a.s + (+b.serials || 0), sc: a.sc + (+b.scanned || 0), c: a.c + (+b.copies || 0) }), { s: 0, sc: 0, c: 0 });
   card.innerHTML = '<div class="row" style="justify-content:space-between"><div><h3>Batches and serial numbers</h3><p class="sub" style="margin-top:4px">Add each batch you release, then upload its serial numbers. Buyers who scan a pack on your list see <b>Genuine</b>. Unknown serials are flagged as likely fake.</p></div>' +
       (demo ? '<span class="tag t-warn">Example data</span>' : '') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button class="btn" type="button" id="impOpen">Import serial numbers from a file</button><span class="note">Excel or CSV export. Batches are created for you.</span></div>' +
     '<div class="kpis"><div class="kpi"><b>' + batches.length + '</b><span>batches</span></div><div class="kpi"><b>' + tot.s.toLocaleString() + '</b><span>serial numbers</span></div><div class="kpi"><b>' + tot.sc.toLocaleString() + '</b><span>packs scanned by buyers</span></div><div class="kpi"><b>' + tot.c.toLocaleString() + '</b><span>possible copied codes</span></div></div>' +
     (batches.length ? '<div class="scroll"><table class="t"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Serials</th><th>Scanned</th><th>Possible copies</th><th></th></tr></thead><tbody>' +
       batches.map(b => '<tr><td>' + esc(b.product) + (b.strength ? ' <span class="note">' + esc(b.strength) + '</span>' : '') + '</td><td><b>' + esc(b.lot) + '</b>' + (b.recalled ? ' <span class="tag t-bad">Recalled</span>' : '') + '</td><td>' + esc(fmtDate(b.exp_date)) + '</td><td>' + (+b.serials).toLocaleString() + (b.quantity ? ' <span class="note">of ' + (+b.quantity).toLocaleString() + '</span>' : '') + '</td><td>' + (+b.scanned).toLocaleString() + '</td><td>' + ((+b.copies) ? '<span class="tag t-bad">' + b.copies + '</span>' : '0') + '</td>' +
         '<td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn soft small" type="button" data-upl="' + esc(b.id) + '">Upload serials</button>' + (demo ? '' : '<button class="btn soft small" type="button" data-rec="' + esc(b.id) + '">' + (b.recalled ? 'Undo recall' : 'Recall') + '</button><button class="btn soft small" type="button" data-delb="' + esc(b.id) + '">Delete</button>') + '</div></td></tr>').join('') +
       '</tbody></table></div>' : '<p class="note" style="margin:10px 0">No batches yet. Add your first one below.</p>') +
-    '<details style="margin-top:16px"' + (batches.length ? '' : ' open') + '><summary><b>Add a batch</b></summary>' +
+    '<details style="margin-top:16px"><summary><b>Add a batch by hand</b></summary>' +
       (prods.length ? '<div class="grid3"><div><label class="f" for="bProd">Product</label><select class="input" id="bProd">' + prods.map(p => '<option value="' + esc(p.id) + '">' + esc(p.name + (p.strength ? ' ' + p.strength : '')) + '</option>').join('') + '</select></div>' +
         '<div><label class="f" for="bLot">Batch number</label><input class="input" id="bLot" placeholder="as printed on the pack"></div><div><label class="f" for="bQty">Quantity <small>(packs)</small></label><input class="input" id="bQty" inputmode="numeric"></div></div>' +
         '<div class="grid3"><div><label class="f" for="bMfg">Manufactured</label><input class="input" id="bMfg" type="date"></div><div><label class="f" for="bExp">Expiry</label><input class="input" id="bExp" type="date"></div></div>' +
         '<p class="err" id="bErr" role="alert"></p><button class="btn" id="bAdd" type="button">' + (demo ? 'Add batch (demo, not saved)' : 'Add batch') + '</button>'
         : '<p class="note" style="margin-top:8px">None of your products has a product number (GTIN) yet. Contact CheckAm to add it.</p>') +
     '</details>' +
-    '<div id="upBox"></div>';
-  card.querySelectorAll('[data-upl]').forEach(b => b.addEventListener('click', () => openUploader(demo, batches.find(x => x.id === b.dataset.upl))));
+    '';
+  if (!$('upBox')) card.insertAdjacentHTML('afterend', '<div id="upBox"></div>');
+  card.querySelectorAll('[data-upl]').forEach(b => b.addEventListener('click', () => openImporter(demo, demoData, batches.find(x => x.id === b.dataset.upl))));
+  $('impOpen').addEventListener('click', () => openImporter(demo, demoData, null));
   card.querySelectorAll('[data-rec]').forEach(b => b.addEventListener('click', async () => {
     const x = batches.find(y => y.id === b.dataset.rec);
     const r = await sb.from('mfr_batches').update({ recalled: !x.recalled, recall_note: x.recalled ? null : 'Recalled by the manufacturer' }).eq('id', x.id);
@@ -369,46 +344,228 @@ async function renderBatches(demo, demoData) {
     toast('Batch added. Now upload its serial numbers.'); renderBatches(false);
   });
 }
-function openUploader(demo, b) {
-  upTarget = b;
-  const box = $('upBox');
-  box.innerHTML = '<div class="uploader"><div class="row" style="justify-content:space-between"><h3>Upload serial numbers for batch ' + esc(b.lot) + '</h3><button class="btn soft small" type="button" id="upClose">Close</button></div>' +
-    '<p class="sub" style="margin-top:6px">Use a CSV or text file with one serial number per line (a column named <b>serial</b> is fine), or paste them below. Full GS1 codes such as (01)…(10)…(21)… also work. Up to 20 characters each.</p>' +
-    '<div class="row" style="margin-top:12px"><label class="btn soft small">Choose file<input class="sr" type="file" id="upFile" accept=".csv,.txt,text/csv,text/plain"></label><button class="btn soft small" type="button" id="upTpl">Download a template</button>' + (demo ? '<button class="btn soft small" type="button" id="upSample">Use example serials</button>' : '') + '</div>' +
-    '<label class="f" for="upText">Or paste serial numbers</label><textarea class="input" id="upText" rows="6" placeholder="ABC0000001&#10;ABC0000002&#10;ABC0000003"></textarea>' +
-    '<p class="note" id="upPreview" style="margin-top:8px"></p><div class="progress" id="upProg" hidden style="margin:10px 0"><i style="width:0"></i></div>' +
-    '<p class="err" id="upErr" role="alert"></p><button class="btn" id="upGo" type="button" disabled>Upload</button></div>';
-  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  let parsed = { serials: [] };
-  const preview = () => {
-    parsed = parseSerials($('upText').value, b.gtin, b.lot);
-    $('upPreview').textContent = parsed.serials.length.toLocaleString() + ' serial numbers ready' + (parsed.dup ? ', ' + parsed.dup + ' duplicates skipped' : '') + (parsed.bad ? ', ' + parsed.bad + ' lines not valid' : '') + (parsed.wrong ? ', ' + parsed.wrong + ' codes from another product or batch skipped' : '') + '.';
-    $('upGo').disabled = !parsed.serials.length;
-    $('upGo').textContent = demo ? 'Upload ' + parsed.serials.length.toLocaleString() + ' (demo, not saved)' : 'Upload ' + parsed.serials.length.toLocaleString() + ' serial numbers';
-  };
-  $('upClose').addEventListener('click', () => { box.innerHTML = ''; });
-  $('upTpl').addEventListener('click', () => downloadTemplate(b.lot));
-  const smp = $('upSample'); if (smp) smp.addEventListener('click', () => { $('upText').value = 'serial\n' + Array.from({ length: 25 }, (_, i) => 'DEMO' + String(201 + i).padStart(4, '0')).join('\n'); preview(); });
-  $('upText').addEventListener('input', preview);
-  $('upFile').addEventListener('change', async ev => {
-    const f = ev.target.files && ev.target.files[0]; if (!f) return;
-    if (f.size > 20 * 1024 * 1024) return toast('That file is larger than 20 MB. Split it into parts.');
-    $('upText').value = await f.text(); preview();
-  });
-  $('upGo').addEventListener('click', async () => {
-    const list = parsed.serials; if (!list.length) return;
-    const go = $('upGo'), bar = $('upProg'); go.disabled = true; bar.hidden = false; $('upErr').textContent = '';
-    let done = 0, added = 0;
-    try {
-      for (let i = 0; i < list.length; i += 2000) {
-        const chunk = list.slice(i, i + 2000);
-        if (demo) await new Promise(r => setTimeout(r, 350)); else { const r = await sb.rpc('add_serials', { p_batch: b.id, p_serials: chunk }); if (r.error) throw r.error; added += r.data || 0; }
-        done += chunk.length; bar.firstChild.style.width = (done / list.length * 100) + '%'; go.textContent = 'Uploading… ' + done.toLocaleString() + ' of ' + list.length.toLocaleString();
-      }
-      if (demo) { b.serials = (+b.serials || 0) + list.length; toast(list.length + ' serial numbers uploaded (demo). In your account these packs would now scan as Genuine.'); renderBatches(true, Object.assign(window.__demoData || {}, { batches })); return; }
-      toast(added.toLocaleString() + ' new serial numbers added' + (added < list.length ? ' (' + (list.length - added) + ' were already on your list)' : ''));
-      renderBatches(false);
-    } catch (e) { $('upErr').textContent = errText(e) + ' (' + done.toLocaleString() + ' uploaded before the error)'; go.disabled = false; go.textContent = 'Try again'; }
+/* ---------- smart serial importer ----------
+   Accepts the file a serialisation system exports (Excel, CSV or text), finds the columns,
+   groups rows by product and batch, creates missing batches, then uploads. */
+const SERIAL_OK = /^[!-~]{1,20}$/;
+const COLS = [['', 'Not used'], ['serial', 'Serial number'], ['gtin', 'Product number (GTIN)'], ['lot', 'Batch / lot'], ['exp', 'Expiry date'], ['gs1', 'Full GS1 code (01…21…)']];
+const HDR = [
+  ['gs1', /gs1|data ?matrix|2d ?code|element|full ?code|ai ?string/i],
+  ['gtin', /gtin|ean|barcode|product ?(code|number|no)|^pc$|item ?code|ndc/i],
+  ['lot', /batch|^lot|lot ?(no|num)/i],
+  ['exp', /exp|expir|use ?by|best ?before/i],
+  ['serial', /serial|^s\/?n$|^sn$|unique|^code$|^id$/i]
+];
+const gtinOk = g => { if (!/^\d{14}$/.test(g)) return false; const d = g.split('').map(Number), l = d.pop(); let s = 0; d.reverse().forEach((n, i) => { s += n * (i % 2 === 0 ? 3 : 1); }); return (10 - s % 10) % 10 === l; };
+function toISODate(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+  const s = String(v).trim(); let m;
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0');
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/))) return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+  if ((m = s.match(/^(\d{1,2})[\/.\-](\d{4})$/))) { const d = new Date(+m[2], +m[1], 0); return m[2] + '-' + m[1].padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  if ((m = s.match(/^(\d{4})[\/.\-](\d{1,2})$/))) { const d = new Date(+m[1], +m[2], 0); return m[1] + '-' + m[2].padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  if ((m = s.match(/^(\d{2})(\d{2})(\d{2})$/))) { const y = 2000 + +m[1], mo = +m[2]; let d = +m[3]; if (mo < 1 || mo > 12) return null; if (!d) d = new Date(y, mo, 0).getDate(); return y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0'); }
+  const t = Date.parse(s); return isNaN(t) ? null : new Date(t).toISOString().slice(0, 10);
+}
+function splitCSV(text) {
+  const lines = String(text).replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+  const first = lines[0], delim = ['\t', ';', ',', '|'].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0];
+  const d = delim[1] > 1 ? delim[0] : null;
+  return lines.map(line => {
+    if (!d) return [line.trim()];
+    const out = []; let cur = '', q = false;
+    for (let i = 0; i < line.length; i++) { const ch = line[i]; if (ch === '"') { if (q && line[i + 1] === '"') { cur += '"'; i++; } else q = !q; } else if (ch === d && !q) { out.push(cur.trim()); cur = ''; } else cur += ch; }
+    out.push(cur.trim()); return out;
   });
 }
+let xlsxLoading = null;
+function loadXLSX() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  if (!xlsxLoading) xlsxLoading = new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'; s.onload = () => res(window.XLSX); s.onerror = () => rej(new Error('Could not load the Excel reader. Check your connection, or save the file as CSV.')); document.head.appendChild(s); });
+  return xlsxLoading;
+}
+async function readRows(file) {
+  const name = (file.name || '').toLowerCase();
+  if (/\.(xlsx|xlsm|xls|ods)$/.test(name)) {
+    const X = await loadXLSX();
+    const wb = X.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    return X.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' }).map(r => r.map(c => (c instanceof Date ? c : String(c).trim())))
+      .filter(r => r.some(c => c !== ''));
+  }
+  return splitCSV(await file.text());
+}
+function guessColumns(rows) {
+  const width = Math.max(...rows.slice(0, 50).map(r => r.length));
+  const head = rows[0] || [];
+  const map = new Array(width).fill(''); let hasHeader = false;
+  head.forEach((h, i) => { if (h instanceof Date) return; const t = String(h || ''); for (const [k, re] of HDR) if (re.test(t) && !map.includes(k)) { map[i] = k; hasHeader = true; break; } });
+  if (!hasHeader && head.length && head.every(h => typeof h === 'string' && /[a-z]{3,}/i.test(h) && !/\d{4,}/.test(h))) hasHeader = true;
+  const body = rows.slice(hasHeader ? 1 : 0, 400);
+  if (!map.includes('gs1') || !map.includes('serial')) {
+    for (let i = 0; i < width; i++) {
+      if (map[i]) continue;
+      const vals = body.map(r => r[i]).filter(v => v !== '' && v != null);
+      if (!vals.length) continue;
+      const share = f => vals.filter(f).length / vals.length;
+      const uniq = new Set(vals.map(String)).size / vals.length;
+      if (!map.includes('gs1') && share(v => /^\(01\)\d{14}|^(\]d2)?01\d{14}.*21|\u001d/.test(String(v))) > .6) map[i] = 'gs1';
+      else if (!map.includes('gtin') && share(v => gtinOk(String(v).replace(/\D/g, '').padStart(14, '0')) && /^\d{8,14}$/.test(String(v))) > .8) map[i] = 'gtin';
+      else if (!map.includes('exp') && share(v => !!toISODate(v) && !/^\d{7,}$/.test(String(v))) > .8) map[i] = 'exp';
+      else if (!map.includes('lot') && uniq < .2 && vals.length > 3) map[i] = 'lot';
+    }
+    if (!map.includes('serial') && !map.includes('gs1')) {
+      let best = -1, bestU = 0;
+      for (let i = 0; i < width; i++) { if (map[i]) continue; const vals = body.map(r => r[i]).filter(v => v !== ''); const u = vals.length ? new Set(vals.map(String)).size / vals.length : 0; if (u > bestU) { bestU = u; best = i; } }
+      if (best >= 0) map[best] = 'serial';
+    }
+  }
+  return { map, hasHeader, width };
+}
+function buildRecords(rows, cfg, target) {
+  const body = rows.slice(cfg.hasHeader ? 1 : 0), idx = k => cfg.map.indexOf(k);
+  const iS = idx('serial'), iG = idx('gtin'), iL = idx('lot'), iE = idx('exp'), iC = idx('gs1');
+  const recs = []; let bad = 0;
+  for (const r of body) {
+    let serial = iS >= 0 ? String(r[iS] ?? '').trim() : '', gtin = iG >= 0 ? String(r[iG] ?? '').replace(/\D/g, '') : '', lot = iL >= 0 ? String(r[iL] ?? '').trim() : '', exp = iE >= 0 ? toISODate(r[iE]) : null;
+    if (iC >= 0 && r[iC]) { const f = parseGS1(String(r[iC])); serial = serial || f['21'] || ''; gtin = gtin || f['01'] || ''; lot = lot || f['10'] || ''; exp = exp || toISODate(f['17']); }
+    if (gtin) gtin = gtin.padStart(14, '0');
+    if (target) { gtin = gtin || target.gtin; lot = lot || target.lot; }
+    if (!SERIAL_OK.test(serial)) { bad++; continue; }
+    recs.push({ serial, gtin, lot, exp });
+  }
+  return { recs, bad };
+}
+function planImport(recs, prods, existing) {
+  const groups = new Map(), seen = new Set(); let dup = 0;
+  for (const x of recs) {
+    const k = x.gtin + '|' + x.lot.toUpperCase();
+    if (seen.has(k + '|' + x.serial)) { dup++; continue; } seen.add(k + '|' + x.serial);
+    if (!groups.has(k)) groups.set(k, { gtin: x.gtin, lot: x.lot, exps: {}, serials: [] });
+    const g = groups.get(k); g.serials.push(x.serial); if (x.exp) g.exps[x.exp] = (g.exps[x.exp] || 0) + 1;
+  }
+  const plan = [], skipped = [];
+  for (const g of groups.values()) {
+    const p = prods.find(q => q.gtin === g.gtin);
+    if (!g.gtin || !p) { skipped.push({ reason: g.gtin ? 'Product number ' + g.gtin + ' is not one of your products' : 'No product number', count: g.serials.length }); continue; }
+    if (!g.lot) { skipped.push({ reason: 'No batch number for ' + p.name, count: g.serials.length }); continue; }
+    const b = existing.find(x => (x.product_id ? x.product_id === p.id : x.gtin === p.gtin) && String(x.lot).toUpperCase() === g.lot.toUpperCase());
+    const exp = Object.entries(g.exps).sort((a, c) => c[1] - a[1])[0];
+    plan.push({ product: p, lot: g.lot, batch: b || null, exp: b ? b.exp_date : (exp ? exp[0] : ''), serials: g.serials });
+  }
+  return { plan, skipped, dup };
+}
+function downloadTemplate(prods) {
+  const p = prods[0] || { gtin: '06151234567891' };
+  const rows = ['GTIN,Batch,Expiry,Serial'].concat(Array.from({ length: 5 }, (_, i) => p.gtin + ',LOT001,2028-12-31,SN' + String(i + 1).padStart(6, '0')));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.join('\n') + '\n'], { type: 'text/csv' }));
+  a.download = 'checkam-serials-template.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function openImporter(demo, demoData, target) {
+  const box = $('upBox');
+  const prods = (demo ? demoData.products : products).filter(p => p.gtin);
+  let rows = null, cfg = null, built = null, planned = null;
+  box.innerHTML = '<div class="uploader" id="imp"><div class="row" style="justify-content:space-between"><h3>' + (target ? 'Upload serial numbers for batch ' + esc(target.lot) : 'Import serial numbers') + '</h3><button class="btn soft small" type="button" id="impClose">Close</button></div>' +
+    '<div id="impStep"></div></div>';
+  $('impClose').addEventListener('click', () => { box.innerHTML = ''; });
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const step = $('impStep');
+
+  function stepPick() {
+    step.innerHTML = '<p class="sub" style="margin-top:6px">Use the file your serialisation or packaging system exports: <b>Excel or CSV</b>, one row per pack. CheckAm finds the serial number, product number, batch and expiry columns itself' + (target ? '' : ', and creates any batch that does not exist yet') + '.</p>' +
+      '<label class="drop" id="impDrop" for="impFile" style="margin-top:12px"><b>Drop the file here, or tap to choose</b><span class="note">Excel (.xlsx, .xls), CSV or text. Any size up to 20 MB.</span><input class="sr" type="file" id="impFile"></label>' +
+      '<details style="margin-top:12px"><summary>Or paste serial numbers</summary><textarea class="input" id="impText" rows="6" style="margin-top:8px" placeholder="One per line, or copy columns straight from Excel"></textarea><button class="btn soft small" type="button" id="impPasteGo" style="margin-top:8px">Use pasted text</button></details>' +
+      '<div class="row" style="margin-top:12px"><button class="btn soft small" type="button" id="impTpl">Download an example file</button>' + (demo ? '<button class="btn soft small" type="button" id="impSample">Try with an example file</button>' : '') + '</div>' +
+      '<p class="err" id="impErr" role="alert"></p>';
+    const take = async file => {
+      $('impErr').textContent = '';
+      if (file.size > 20 * 1024 * 1024) { $('impErr').textContent = 'That file is larger than 20 MB. Split it into parts.'; return; }
+      try { $('impDrop').querySelector('b').textContent = 'Reading ' + file.name + '…'; rows = await readRows(file); }
+      catch (e) { $('impErr').textContent = errText(e); $('impDrop').querySelector('b').textContent = 'Drop the file here, or tap to choose'; return; }
+      if (!rows.length) { $('impErr').textContent = 'That file looks empty.'; return; }
+      cfg = guessColumns(rows); stepReview();
+    };
+    $('impFile').addEventListener('change', ev => { const f = ev.target.files && ev.target.files[0]; if (f) take(f); });
+    const drop = $('impDrop');
+    ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', ev => { const f = ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f) take(f); });
+    $('impPasteGo').addEventListener('click', () => { const t = $('impText').value; if (!t.trim()) return; rows = splitCSV(t); cfg = guessColumns(rows); stepReview(); });
+    $('impTpl').addEventListener('click', () => downloadTemplate(prods));
+    const smp = $('impSample'); if (smp) smp.addEventListener('click', () => {
+      const p1 = prods[0], p2 = prods[1] || prods[0], e1 = '2029-01-31', e2 = '2028-07-31';
+      rows = [['Product code', 'Batch No.', 'Exp. Date', 'Serial No.']]
+        .concat(Array.from({ length: 30 }, (_, i) => [p1.gtin, 'DQ2601', e1, 'DEMO' + String(301 + i).padStart(4, '0')]))
+        .concat(Array.from({ length: 20 }, (_, i) => [p2.gtin, 'NEW2611', e2, 'NX' + String(i + 1).padStart(5, '0')]));
+      cfg = guessColumns(rows); stepReview();
+    });
+  }
+
+  function stepReview() {
+    built = buildRecords(rows, cfg, target);
+    planned = planImport(built.recs, prods, batches);
+    const prev = rows.slice(0, (cfg.hasHeader ? 1 : 0) + 4);
+    const total = planned.plan.reduce((a, g) => a + g.serials.length, 0);
+    const needExp = planned.plan.filter(g => !g.batch && !g.exp);
+    step.innerHTML =
+      '<h3 style="margin-top:12px;font-size:17px">1. Check the columns</h3><p class="note">We guessed what each column holds. Change any that are wrong.</p>' +
+      '<div class="scroll" style="margin-top:8px"><table class="t"><thead><tr>' + Array.from({ length: cfg.width }, (_, i) => '<th><select class="input" style="min-height:38px;font-size:14px;padding:4px 8px" data-col="' + i + '">' + COLS.map(([k, l]) => '<option value="' + k + '"' + (cfg.map[i] === k ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></th>').join('') + '</tr></thead><tbody>' +
+        prev.map((r, ri) => '<tr' + (ri === 0 && cfg.hasHeader ? ' class="note"' : '') + '>' + Array.from({ length: cfg.width }, (_, i) => '<td>' + esc(r[i] instanceof Date ? toISODate(r[i]) : r[i] ?? '') + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>' +
+      '<label class="row" style="gap:8px;margin-top:8px;font-size:15px"><input type="checkbox" id="impHdr"' + (cfg.hasHeader ? ' checked' : '') + ' style="width:20px;height:20px"> The first row is a header</label>' +
+      '<h3 style="margin-top:18px;font-size:17px">2. What will be uploaded</h3>' +
+      (planned.plan.length ? '<div class="scroll"><table class="t" style="margin-top:8px"><thead><tr><th>Product</th><th>Batch</th><th>Expiry</th><th>Serial numbers</th><th></th></tr></thead><tbody>' +
+        planned.plan.map((g, i) => '<tr><td>' + esc(g.product.name) + '</td><td><b>' + esc(g.lot) + '</b></td><td>' + (g.batch ? esc(fmtDate(g.batch.exp_date)) : '<input class="input" type="date" data-exp="' + i + '" value="' + esc(g.exp) + '" style="min-height:38px;max-width:170px">') + '</td><td>' + g.serials.length.toLocaleString() + '</td><td>' + (g.batch ? '<span class="tag t-info">Existing batch</span>' : '<span class="tag t-ok">New batch, created for you</span>') + '</td></tr>').join('') +
+        '</tbody></table></div>' : '<p class="err">No serial numbers could be matched to your products. Check the columns above' + (prods.length ? '' : ', and that your products have product numbers') + '.</p>') +
+      (planned.skipped.length || built.bad || planned.dup ? '<ul class="note" style="margin:8px 0 0;padding-left:18px">' + planned.skipped.map(s => '<li>' + s.count.toLocaleString() + ' skipped: ' + esc(s.reason) + '</li>').join('') + (built.bad ? '<li>' + built.bad.toLocaleString() + ' rows skipped: no valid serial number (up to 20 characters, no spaces)</li>' : '') + (planned.dup ? '<li>' + planned.dup.toLocaleString() + ' duplicate rows skipped</li>' : '') + '</ul>' : '') +
+      (needExp.length ? '<p class="note" style="margin-top:8px">Add the expiry date for the new batches above.</p>' : '') +
+      '<div class="progress" id="impProg" hidden style="margin:14px 0 6px"><i style="width:0"></i></div><p class="err" id="impErr" role="alert"></p>' +
+      '<div class="row" style="margin-top:12px"><button class="btn" id="impGo" type="button"' + (total ? '' : ' disabled') + '>' + (demo ? 'Upload ' + total.toLocaleString() + ' (demo, not saved)' : 'Upload ' + total.toLocaleString() + ' serial numbers') + '</button><button class="btn soft" id="impBack" type="button">Choose another file</button></div>';
+    step.querySelectorAll('[data-col]').forEach(sel => sel.addEventListener('change', () => {
+      const i = +sel.dataset.col, v = sel.value;
+      if (v) cfg.map = cfg.map.map((x, j) => (x === v && j !== i ? '' : x));
+      cfg.map[i] = v; stepReview();
+    }));
+    $('impHdr').addEventListener('change', () => { cfg.hasHeader = $('impHdr').checked; stepReview(); });
+    step.querySelectorAll('[data-exp]').forEach(inp => inp.addEventListener('change', () => { planned.plan[+inp.dataset.exp].exp = inp.value; }));
+    $('impBack').addEventListener('click', stepPick);
+    $('impGo').addEventListener('click', runImport);
+  }
+
+  async function runImport() {
+    const missing = planned.plan.find(g => !g.batch && !g.exp);
+    if (missing) { $('impErr').textContent = 'Add the expiry date for batch ' + missing.lot + '.'; return; }
+    const go = $('impGo'), bar = $('impProg'); go.disabled = true; $('impBack').disabled = true; bar.hidden = false; $('impErr').textContent = '';
+    const total = planned.plan.reduce((a, g) => a + g.serials.length, 0); let done = 0, added = 0, created = 0;
+    try {
+      for (const g of planned.plan) {
+        let batchId = g.batch && g.batch.id;
+        if (!batchId) {
+          if (demo) { batchId = 'demo-' + Math.random().toString(36).slice(2); batches.unshift({ id: batchId, product: g.product.name, strength: g.product.strength, gtin: g.product.gtin, product_id: g.product.id, lot: g.lot, exp_date: g.exp, serials: 0, scanned: 0, copies: 0 }); }
+          else {
+            const r = await sb.from('mfr_batches').insert({ manufacturer_id: mfr.id, product_id: g.product.id, lot: g.lot, exp_date: g.exp }).select('id').single();
+            if (r.error) throw r.error; batchId = r.data.id;
+          }
+          created++;
+        }
+        for (let i = 0; i < g.serials.length; i += 2000) {
+          const chunk = g.serials.slice(i, i + 2000);
+          if (demo) { await new Promise(r => setTimeout(r, 250)); added += chunk.length; const b = batches.find(x => x.id === batchId); if (b) b.serials = (+b.serials || 0) + chunk.length; }
+          else { const r = await sb.rpc('add_serials', { p_batch: batchId, p_serials: chunk }); if (r.error) throw r.error; added += r.data || 0; }
+          done += chunk.length; bar.firstChild.style.width = (done / total * 100) + '%'; go.textContent = 'Uploading… ' + done.toLocaleString() + ' of ' + total.toLocaleString();
+        }
+      }
+      const msg = added.toLocaleString() + ' serial numbers added' + (created ? ', ' + created + ' new batch' + (created > 1 ? 'es' : '') + ' created' : '') + (added < total && !demo ? '. ' + (total - added).toLocaleString() + ' were already on your list.' : '.');
+      toast(demo ? msg + ' (demo, not saved)' : msg);
+      box.innerHTML = '<div class="banner ok" style="margin-top:0"><h3 style="color:#fff">Import complete</h3><p>' + esc(msg) + (demo ? ' This was a demo, nothing was saved.' : ' Buyers who scan these packs now see Genuine.') + '</p></div>';
+      if (demo) renderBatches(true, Object.assign(window.__demoData || demoData, { batches })); else renderBatches(false);
+    } catch (e) {
+      $('impErr').textContent = errText(e) + ' (' + done.toLocaleString() + ' uploaded before the problem; running the import again safely skips those)';
+      go.disabled = false; $('impBack').disabled = false; go.textContent = 'Try again';
+    }
+  }
+  stepPick();
+}
+
 })();

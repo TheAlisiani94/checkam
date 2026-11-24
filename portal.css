@@ -109,3 +109,7 @@ dialog.modal::backdrop{background:rgba(4,18,11,.55);backdrop-filter:blur(2px)}
 .kpi{background:var(--mint);border-radius:12px;padding:12px}
 .kpi b{display:block;font:800 24px/1.1 var(--display);font-variant-numeric:tabular-nums}
 .kpi span{font-size:13px;color:var(--soft)}
+.drop{display:grid;gap:4px;justify-items:center;text-align:center;padding:26px 16px;border:2px dashed var(--leaf);border-radius:14px;background:var(--paper);cursor:pointer}
+.drop.over{background:color-mix(in srgb,var(--leaf) 12%,var(--paper))}
+.drop:focus-within{outline:3px solid var(--saffron);outline-offset:2px}
+#upBox .uploader{margin-top:0}
