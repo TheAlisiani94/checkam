@@ -125,7 +125,8 @@ function evaluate(e) {
     else if (c && c.others > 0) {
       const here = (e.opts.city || '').trim().toLowerCase();
       const far = (c.cities || []).filter(x => x && x !== here).map(x => x.replace(/\b\w/g, k => k.toUpperCase()));
-      if (far.length || c.others >= 2) add('bad', 'This exact serial number was already scanned ' + c.others + (c.others > 1 ? ' times' : ' time') + (far.length ? ' in ' + far.join(', ') : '') + '. Every genuine pack has its own serial, so this code has probably been copied.');
+      if (c.others >= 2) add('bad', 'This exact serial number was already scanned on ' + c.others + ' other phones' + (far.length ? ', in ' + far.join(', ') : '') + '. Every genuine pack has its own serial, so this code has probably been copied.');
+      else if (far.length) add('warn', 'This serial was scanned once before, in ' + far.join(', ') + '. That can happen if a supplier scanned it, but it can also mean the code was copied. Compare the pack carefully and ask the seller where it came from.');
       else add('warn', 'Someone else scanned this serial before, in the same town. It may be the same pack resold. Ask the seller.');
     }
   }
