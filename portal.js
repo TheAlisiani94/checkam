@@ -80,3 +80,12 @@ function parseGS1(text) {
 }
 window.CK = { CFG, $, esc, fmtDate, STATES, CHECKS, CHECK, DOCS, STATUS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress, parseGS1 };
 })();
+
+// Show a friendly message when an email link has expired or was already used.
+(function () {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (!h.get('error')) return;
+  const msg = h.get('error_code') === 'otp_expired' ? 'That email link has expired or was already used. Sign in, or create the account again to get a new link.' : (h.get('error_description') || 'That link did not work.');
+  history.replaceState(null, '', location.pathname + location.search);
+  window.addEventListener('load', () => setTimeout(() => (window.CK && CK.toast ? CK.toast(msg) : alert(msg)), 400));
+})();

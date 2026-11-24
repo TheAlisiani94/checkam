@@ -87,7 +87,7 @@ function renderAuth(mode) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $('aErr').textContent = 'Enter a valid email.'; return; }
     if (password.length < 10) { $('aErr').textContent = 'Use at least 10 characters for the password.'; return; }
     const btn = $('aGo'); btn.disabled = true; btn.textContent = 'Please wait…';
-    const r = mode === 'up' ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+    const r = mode === 'up' ? await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + location.pathname.replace(/[^/]*$/, '') + 'partner.html' } }) : await sb.auth.signInWithPassword({ email, password });
     btn.disabled = false; btn.textContent = mode === 'up' ? 'Create account' : 'Sign in';
     if (r.error) { $('aErr').textContent = errText(r.error); return; }
     if (mode === 'up' && !r.data.session) { $('authBody').innerHTML = '<h2 id="authH">Check your email</h2><p class="sub" style="margin-top:8px">We sent a link to ' + esc(email) + '. Open it to confirm your account, then sign in.</p>'; return; }
