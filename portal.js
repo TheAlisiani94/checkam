@@ -33,7 +33,7 @@ const statusTag = s => { const v = STATUS[s] || [s, 't-info']; return '<span cla
 const icon = st => st === 'passed' ? '✓' : st === 'failed' ? '✕' : '…';
 
 let toastT;
-function toast(msg) { const t = $('toast'); if (!t) return; t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 3200); }
+function toast(msg) { const t = $('toast'); if (!t) return; const host = [...document.querySelectorAll('dialog[open]')].pop() || document.body; if (t.parentNode !== host) host.appendChild(t); t.textContent = msg; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 3200); }
 
 const sb = (window.supabase && CFG.SUPABASE_URL) ? window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { persistSession: true, autoRefreshToken: true } }) : null;
 
@@ -78,7 +78,38 @@ function parseGS1(text) {
   }
   return out;
 }
-window.CK = { CFG, $, esc, fmtDate, STATES, CHECKS, CHECK, DOCS, STATUS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress, parseGS1 };
+
+/* ---------- pop-ups: close button, Escape, tap outside and the phone's Back button all close them ---------- */
+const X_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+const modalStack = [];
+function modal(title, opts = {}) {
+  const d = document.createElement('dialog');
+  d.className = 'modal pop' + (opts.wide ? ' wide' : '');
+  d.innerHTML = '<button class="modal-x" type="button" aria-label="Close">' + X_SVG + '</button><header class="m-head"><h2 class="m-title"></h2><p class="sub m-sub"></p></header><div class="m-body"></div>';
+  document.body.appendChild(d);
+  const api = {
+    el: d, body: d.querySelector('.m-body'),
+    title(t, sub) { d.querySelector('.m-title').textContent = t; const s = d.querySelector('.m-sub'); s.textContent = sub || ''; s.hidden = !sub; return api; },
+    close(then) { if (!d.isConnected || d._closing) return; d._closing = true; d._then = then; history.back(); },
+    onClose: opts.onClose || null
+  };
+  d._api = api;
+  api.title(title, opts.sub);
+  d.querySelector('.modal-x').addEventListener('click', () => api.close());
+  d.addEventListener('cancel', e => { e.preventDefault(); api.close(); });
+  d.addEventListener('mousedown', e => { if (e.target !== d) return; const r = d.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) api.close(); });
+  modalStack.push(d); history.pushState({ ckModal: modalStack.length }, '');
+  d.showModal(); d.scrollTop = 0;
+  return api;
+}
+addEventListener('popstate', () => {
+  const d = modalStack.pop(); if (!d) return;
+  d.close(); d.remove();
+  const api = d._api; if (api.onClose) api.onClose();
+  if (d._then) setTimeout(d._then, 30);
+});
+
+window.CK = { modal, X_SVG, CFG, $, esc, fmtDate, STATES, CHECKS, CHECK, DOCS, STATUS, statusTag, toast, sb, publicRpc, errText, renderChecks, progress, parseGS1 };
 })();
 
 // Show a friendly message when an email link has expired or was already used.
